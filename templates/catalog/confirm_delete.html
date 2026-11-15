@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+
+{% block title %}Delete {{ object_name }}{% endblock %}
+
+{% block page_title %}Delete {{ object_name }}{% endblock %}
+{% block page_subtitle %}{{ subtitle }}{% endblock %}
+
+{% block content %}
+<div class="section" style="max-width:600px;">
+  <div class="section-header">
+    <h2 class="section-title"><i data-lucide="trash-2"></i> Delete {{ object_name }}</h2>
+  </div>
+  <p>Are you sure you want to delete <strong>{{ object }}</strong>? This cannot be undone.</p>
+  <form method="post" class="d-flex gap-2">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-charcoal" data-confirm="Confirm deletion?">Yes, delete</button>
+    <a href="{{ cancel_url }}" class="btn btn-gold">Cancel</a>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function(){
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+
+{% block title %}Sign in — VELOURA{% endblock %}
+{% block body_class %}auth-page{% endblock %}
+
+{% block extra_css %}
+<style>
+  .auth-page .main-content {
+    margin-left: 0;
+    padding-top: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: var(--veloura-ivory);
+  }
+  .auth-page .topbar, .auth-page .sidebar { display: none; }
+  .auth-card {
+    width: 100%;
+    max-width: 420px;
+    padding: 3rem 2rem;
+    background: var(--veloura-white);
+    border: 1px solid var(--veloura-border);
+    border-radius: 20px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.10);
+  }
+  .auth-brand {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--veloura-charcoal);
+    text-align: center;
+    margin-bottom: 0.25rem;
+  }
+  .auth-tagline {
+    text-align: center;
+    color: var(--veloura-gold);
+    font-size: 0.85rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-bottom: 2rem;
+  }
+  .auth-footer {
+    text-align: center;
+    margin-top: 1.5rem;
+    color: var(--veloura-gray);
+    font-size: 0.85rem;
+  }
+  .auth-footer a { color: var(--veloura-gold); text-decoration: none; font-weight: 600; }
+</style>
+{% endblock %}
+
+{% block page_title %}Sign In{% endblock %}
+{% block page_subtitle %}Veloura Fashion Management System{% endblock %}
+
+{% block content %}
+<div class="auth-card fade-in">
+  <div class="auth-brand">
+    <i data-lucide="sparkles" style="width:28px;height:28px;color:var(--veloura-gold);vertical-align:middle;margin-right:0.5rem;"></i>
+    VELOURA
+  </div>
+  <div class="auth-tagline">Fashion Management System</div>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }} fade-in" role="alert">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+    <div class="mb-3">
+      <label class="form-label">Username</label>
+      <input type="text" name="username" class="form-control" autocomplete="username" required autofocus>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Password</label>
+      <input type="password" name="password" class="form-control" autocomplete="current-password" required>
+    </div>
+    <button class="btn btn-gold w-100 mb-3" type="submit">Sign in</button>
+  </form>
+
+  <div class="auth-footer">
+    No account? Contact your administrator to create one.
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function(){
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  });
+</script>
+{% endblock %}

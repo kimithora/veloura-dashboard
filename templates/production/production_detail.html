@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ production.production_id }} — VELOURA{% endblock %}
+
+{% block page_title %}Production {{ production.production_id }}{% endblock %}
+{% block page_subtitle %}{{ production.order.order_number }}{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-md-8">
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title"><i data-lucide="layers"></i> Production Details</h2>
+      </div>
+      <table class="table table-borderless">
+        <tr><th style="width:35%;">Production ID</th><td>{{ production.production_id }}</td></tr>
+        <tr><th>Order</th><td><a href="{% url 'orders:order_detail' pk=production.order.pk %}">{{ production.order.order_number }}</a></td></tr>
+        <tr><th>Customer</th><td>{{ production.order.customer.full_name }}</td></tr>
+        <tr><th>Designer</th><td>{{ production.designer.username|default:'Not assigned' }}</td></tr>
+        <tr><th>Status</th><td>
+          <span class="badge badge-status {% if production.status == 'COMPLETED' %}badge-status-completed{% elif production.status == 'DELAYED' %}badge-status-rejected{% else %}badge-status-pending{% endif %}">
+            {{ production.get_status_display }}
+          </span>
+        </td></tr>
+        <tr><th>Progress</th><td>{{ production.progress }}%</td></tr>
+        <tr><th>Start Date</th><td>{{ production.start_date|date:"d M Y"|default:'-' }}</td></tr>
+        <tr><th>Estimated Completion</th><td>{{ production.estimated_completion|date:"d M Y"|default:'-' }}</td></tr>
+        <tr><th>Actual Completion</th><td>{{ production.actual_completion|date:"d M Y"|default:'-' }}</td></tr>
+        {% if production.notes %}<tr><th>Notes</th><td>{{ production.notes }}</td></tr>{% endif %}
+      </table>
+    </div>
+
+    <div class="section mt-4">
+      <h3>Material Usage</h3>
+      {% if production.material_usages.exists %}
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr><th>Usage ID</th><th>Material</th><th>Quantity Used</th><th>Used By</th><th>Date</th></tr>
+          </thead>
+          <tbody>
+            {% for u in production.material_usages.all %}
+            <tr>
+              <td>{{ u.usage_id }}</td>
+              <td>{{ u.material.name }}</td>
+              <td class="text-end">{{ u.quantity_used }} {{ u.material.get_unit_display }}</td>
+              <td>{{ u.used_by.username|default:'-' }}</td>
+              <td>{{ u.used_at|date:"d M Y H:i" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-muted">No material usage recorded yet.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="section">
+      <h3>Update Progress</h3>
+      <form id="progressForm" class="row g-2">
+        {% csrf_token %}
+        <div class="col-12">
+          <label class="form-label">Progress (%)</label>
+          <input type="number" name="progress" class="form-control" min="0" max="100" value="{{ production.progress }}" required>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Status</label>
+          <select name="status" class="form-select">
+            {% for code, label in production.Status.choices %}
+              <option value="{{ code }}"{% if code == production.status %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Notes (optional)</label>
+          <input type="text" name="notes" class="form-control" placeholder="e.g. Fabric cut...">
+        </div>
+        <div class="col-12 d-grid">
+          <button type="submit" class="btn btn-gold">Update Progress</button>
+        </div>
+      </form>
+      <div id="progressMsg" class="mt-2"></div>
+    </div>
+
+    <div class="section mt-4">
+      <h3>Record Material Usage</h3>
+      <p class="text-muted small">Records actual material consumption and reduces inventory.</p>
+      <div class="d-grid gap-2">
+        <a href="#" class="btn btn-outline-gold" data-confirm="Material usage form coming soon."><i data-lucide="activity"></i> Record Usage</a>
+      </div>
+    </div>
+
+    <div class="section mt-4">
+      <h3>Actions</h3>
+      <div class="d-grid gap-2">
+        <a href="{% url 'production:production_list' %}" class="btn btn-charcoal"><i data-lucide="arrow-left"></i> Back to Production</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+  var form = document.getElementById('progressForm');
+  var msg = document.getElementById('progressMsg');
+  var productionId = {{ production.pk }};
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    var fd = new FormData(form);
+    fetch('/production/' + productionId + '/update/', {
+      method: 'POST',
+      headers: {'X-CSRFToken': getCookie('csrftoken')},
+      body: fd,
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if(data.ok){
+        msg.innerHTML = '<div class="alert alert-success">Progress updated.</div>';
+        setTimeout(function(){ location.reload(); }, 800);
+      } else {
+        msg.innerHTML = '<div class="alert alert-danger">' + (data.error || 'Failed') + '</div>';
+      }
+    });
+  });
+  function getCookie(name){
+    var v = document.cookie.match('(^|; )' + name + '=([^;]*)');
+    return v ? decodeURIComponent(v[2]) : null;
+  }
+});
+</script>
+{% endblock %}

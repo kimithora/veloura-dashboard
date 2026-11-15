@@ -1,0 +1,166 @@
+{% extends 'base.html' %}
+
+{% load catalog_tags %}
+
+{% block title %}Pembayaran — VELOURA{% endblock %}
+
+{% block page_title %}Pembayaran{% endblock %}
+{% block page_subtitle %}Histori dan konfirmasi pembayaran{% endblock %}
+
+{% block content %}
+<div class="section">
+  <div class="section-header">
+    <h2 class="section-title"><i data-lucide="credit-card"></i> Pembayaran</h2>
+  </div>
+
+  <!-- Summary cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-4">
+      <div class="stat-card">
+        <div class="label">Total Dikonfirmasi</div>
+        <p class="value">{{ VELOURA_CURRENCY_SYMBOL }} {{ confirmed_total|floatformat:0 }}</p>
+        <div class="icon gold"><i data-lucide="check-circle-2"></i></div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="stat-card">
+        <div class="label">Menunggu Konfirmasi</div>
+        <p class="value">{{ VELOURA_CURRENCY_SYMBOL }} {{ pending_total|floatformat:0 }}</p>
+        <div class="icon ivory"><i data-lucide="clock"></i></div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="stat-card">
+        <div class="label">Jumlah Transaksi</div>
+        <p class="value">{{ page_obj.paginator.count }}</p>
+        <div class="icon gray"><i data-lucide="receipt"></i></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filter form -->
+  <form method="get" class="row g-3 mb-4 align-items-end">
+    <div class="col-md-3">
+      <div class="input-group">
+        <span class="input-group-text"><i data-lucide="search"></i></span>
+        <input type="text" name="q" class="form-control" value="{{ query }}" placeholder="Cari no. transaksi…">
+      </div>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label d-block mb-1">Status</label>
+      <select name="status" class="form-select form-select-sm">
+        <option value="">Semua</option>
+        {% for val, label in status_choices %}
+          <option value="{{ val }}" {% if current_filters.status == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label d-block mb-1">Metode</label>
+      <select name="method" class="form-select form-select-sm">
+        <option value="">Semua</option>
+        {% for val, label in method_choices %}
+          <option value="{{ val }}" {% if current_filters.method == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label d-block mb-1">Tipe</label>
+      <select name="payment_type" class="form-select form-select-sm">
+        <option value="">Semua</option>
+        {% for val, label in payment_type_choices %}
+          <option value="{{ val }}" {% if current_filters.payment_type == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label d-block mb-1">Dari tanggal</label>
+      <input type="date" name="date_from" class="form-control form-control-sm" value="{{ current_filters.date_from }}">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label d-block mb-1">Sampai tanggal</label>
+      <input type="date" name="date_to" class="form-control form-control-sm" value="{{ current_filters.date_to }}">
+    </div>
+    <div class="col-md-2 d-grid">
+      <button class="btn btn-charcoal" type="submit"><i data-lucide="search"></i> Filter</button>
+    </div>
+    <div class="col-md-2 d-grid">
+      {% if request.GET.urlencode %}
+        <a href="{{ request.path }}" class="btn btn-outline-gold"><i data-lucide="rotate-ccw"></i> Reset</a>
+      {% endif %}
+    </div>
+  </form>
+
+  {% if payments %}
+  <div class="table-responsive">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Transaksi</th><th>Jumlah</th><th>Tipe</th><th>Metode</th><th>Status</th><th>Dikonfirmasi Oleh</th><th>Tanggal</th><th>Aksi</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in payments %}
+        <tr>
+          <td>
+            <a href="{% url 'sales:transaction_detail' pk=p.transaction.pk %}">{{ p.transaction.transaction_number }}</a><br>
+            <small class="text-muted">{{ p.transaction.customer.full_name|default:'Walk-in' }}</small>
+          </td>
+          <td class="text-end">{{ VELOURA_CURRENCY_SYMBOL }} {{ p.amount|floatformat:0 }}</td>
+          <td><span class="badge badge-soft">{{ p.get_payment_type_display }}</span></td>
+          <td>{{ p.get_method_display }}</td>
+          <td>
+            <span class="badge {% if p.status == 'CONFIRMED' %}bg-success text-white{% elif p.status == 'PENDING' %}bg-warning text-dark{% elif p.status == 'REFUNDED' %}bg-danger text-white{% else %}bg-secondary text-white{% endif %}">
+              {{ p.get_status_display }}
+            </span>
+          </td>
+          <td>{{ p.confirmed_by.username|default:'-' }}</td>
+          <td>{{ p.created_at|date:"d M Y H:i" }}</td>
+          <td class="text-end">
+            <a href="{% url 'payments:payment_detail' payment_pk=p.pk %}" class="btn btn-sm btn-charcoal"><i data-lucide="eye"></i></a>
+            {% if p.status == 'PENDING' or p.status == 'CONFIRMED' %}
+              <button class="btn btn-sm" style="color:#c62828;border:1px solid #c62828;" onclick="voidPayment({{ p.pk }})"><i data-lucide="x-circle"></i></button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include 'catalog/pagination.html' %}
+  {% else %}
+  <div class="empty-state">
+    <i data-lucide="credit-card"></i>
+    <h3>Tidak ada pembayaran</h3>
+    <p>Pembayaran dibuat saat checkout penjualan.</p>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+});
+
+function voidPayment(paymentId){
+  if(!confirm('Batalkan atau refund pembayaran ini?')) return;
+  fetch('/payments/void/' + paymentId + '/', {
+    method: 'POST',
+    headers: {'X-CSRFToken': getCookie('csrftoken')},
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    if(data.ok){ location.reload(); }
+    else { alert('Gagal: ' + data.error); }
+  });
+}
+
+function getCookie(name){
+  var v = document.cookie.match('(^|; )' + name + '=([^;]*)');
+  return v ? decodeURIComponent(v[2]) : null;
+}
+</script>
+{% endblock %}

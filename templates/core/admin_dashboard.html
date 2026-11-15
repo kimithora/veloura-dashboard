@@ -1,0 +1,156 @@
+{% extends 'base.html' %}
+
+{% block title %}Admin Dashboard — VELOURA{% endblock %}
+
+{% block page_title %}Admin Dashboard{% endblock %}
+{% block page_subtitle %}System overview and administration{% endblock %}
+
+{% block sidebar %}
+  <div class="nav-group-label">Main</div>
+  <a href="{% url 'core:admin_dashboard' %}" class="nav-link active" aria-current="page">
+    <i data-lucide="layout-dashboard"></i> Dashboard
+  </a>
+  <a href="{% url 'admin:index' %}" class="nav-link" target="_blank" rel="noopener">
+    <i data-lucide="users"></i> Users &amp; Roles
+  </a>
+  <a href="{% url 'catalog:product_list' %}" class="nav-link">
+    <i data-lucide="tag"></i> Products
+  </a>
+  <a href="{% url 'catalog:category_list' %}" class="nav-link">
+    <i data-lucide="folder"></i> Categories
+  </a>
+  <a href="{% url 'inventory:material_list' %}" class="nav-link">
+    <i data-lucide="package"></i> Materials
+  </a>
+  <a href="{% url 'inventory:movement_list' %}" class="nav-link">
+    <i data-lucide="activity"></i> Stock Movements
+  </a>
+  <a href="{% url 'suppliers:supplier_list' %}" class="nav-link">
+    <i data-lucide="truck"></i> Suppliers
+  </a>
+  <a href="{% url 'customers:customer_list' %}" class="nav-link">
+    <i data-lucide="users"></i> Customers
+  </a>
+
+  <a href="{% url 'sales:transaction_list' %}" class="nav-link">
+    <i data-lucide="shopping-cart"></i> Sales &amp; Transactions
+  </a>
+  <a href="{% url 'payments:payment_list' %}" class="nav-link">
+    <i data-lucide="credit-card"></i> Pembayaran
+  </a>
+  <a href="{% url 'orders:order_list' %}" class="nav-link">
+    <i data-lucide="scissors"></i> Custom Orders
+  </a>
+  <a href="{% url 'production:production_list' %}" class="nav-link">
+    <i data-lucide="layers"></i> Production
+  </a>
+
+  <div class="divider"></div>
+  <div class="nav-group-label">Coming Soon</div>
+  <a href="#" class="nav-link" onclick="return false;" data-confirm="Analytics coming in Phase 6.">
+    <i data-lucide="bar-chart-2"></i> Analytics
+  </a>
+  <a href="#" class="nav-link" onclick="return false;" data-confirm="Reports coming in Phase 6.">
+    <i data-lucide="file-text"></i> Reports
+  </a>
+  <a href="#" class="nav-link" onclick="return false;" data-confirm="System settings coming in Phase 6.">
+    <i data-lucide="settings"></i> System Settings
+  </a>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-md-6 col-lg-3">
+    <div class="stat-card">
+      <div class="label">Total Users</div>
+      <p class="value">—</p>
+      <p class="delta neutral">Role-based access active</p>
+      <div class="icon gold"><i data-lucide="users"></i></div>
+    </div>
+  </div>
+  <div class="col-md-6 col-lg-3">
+    <div class="stat-card">
+      <div class="label">Total Products</div>
+      <p class="value">—</p>
+      <p class="delta neutral">Catalogue module active</p>
+      <div class="icon ivory"><i data-lucide="tag"></i></div>
+    </div>
+  </div>
+  <div class="col-md-6 col-lg-3">
+    <div class="stat-card">
+      <div class="label">Sales Today</div>
+      <p class="value">—</p>
+      <p class="delta up">POS module active</p>
+      <div class="icon gold"><i data-lucide="dollar-sign"></i></div>
+    </div>
+  </div>
+  <div class="col-md-6 col-lg-3">
+    <div class="stat-card">
+      <div class="label">Low Stock Alerts</div>
+      <p class="value">—</p>
+      <p class="delta neutral">Inventory module active</p>
+      <div class="icon gray"><i data-lucide="alert-circle"></i></div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <h2 class="section-title"><i data-lucide="layout-grid"></i>System Status</h2>
+  </div>
+  <div class="row g-4">
+    <div class="col-md-6">
+      <div class="empty-state" style="padding:2rem;">
+        <i data-lucide="users"></i>
+        <h3>User Management</h3>
+        <p>Manage users and roles via <strong>Django Admin</strong> at <code>/admin/</code>.</p>
+        <a href="{% url 'admin:index' %}" class="btn btn-charcoal" target="_blank">Open Django Admin</a>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="empty-state" style="padding:2rem;">
+        <i data-lucide="shield-check"></i>
+        <h3>Role-Based Access</h3>
+        <p>Current user role: <strong>{{ user_role }}</strong>. Access is enforced on the backend for every module.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <h2 class="section-title"><i data-lucide="rocket"></i>Roadmap</h2>
+  </div>
+  <div class="row g-4">
+    <div class="col-md-4">
+      <div class="stat-card">
+        <div class="label">Phase 1 — Foundation</div>
+        <p class="value">✔ Done</p>
+        <p class="delta up">Django project, auth, roles, base UI</p>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="stat-card">
+        <div class="label">Phase 2 — Catalogue &amp; Inventory</div>
+        <p class="value">✔ Done</p>
+        <p class="delta up">Products, categories, suppliers, customers, materials</p>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="stat-card">
+        <div class="label">Phase 3 — POS &amp; Barcode</div>
+        <p class="value">✔ Done</p>
+        <p class="delta up">Barcode generator, scanner, cart, stock deduction</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function(){
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  });
+</script>
+{% endblock %}

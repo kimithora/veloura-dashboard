@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+
+{% load catalog_tags %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block page_title %}{{ title }}{% endblock %}
+{% block page_subtitle %}{{ subtitle }}{% endblock %}
+
+{% block content %}
+<div class="section" style="max-width:760px;">
+  <div class="section-header">
+    <h2 class="section-title"><i data-lucide="{{ icon }}"></i> {{ title }}</h2>
+  </div>
+  <form method="post" enctype="multipart/form-data" class="row g-3">
+    {% csrf_token %}
+    {% for field in form %}
+      <div class="col-md-6 {% if field.field.widget.input_type == 'file' %}col-md-12{% endif %}">
+        <label class="form-label">{{ field.label }}{% if field.field.required %}<span style="color:#c62828;">*</span>{% endif %}</label>
+        {{ field }}
+        {% if field.errors %}
+          <div class="text-danger small">{{ field.errors|join:", " }}</div>
+        {% endif %}
+        {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+      </div>
+    {% endfor %}
+    <div class="col-12 d-flex gap-2 mt-3">
+      <button type="submit" class="btn btn-gold"><i data-lucide="save"></i> Save</button>
+      <a href="{{ cancel_url }}" class="btn btn-charcoal">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function(){
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  });
+</script>
+{% endblock %}

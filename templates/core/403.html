@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+
+{% block title %}Forbidden — VELOURA{% endblock %}
+
+{% block page_title %}Access Denied{% endblock %}
+{% block page_subtitle %}You do not have permission to view this page.{% endblock %}
+
+{% block content %}
+<div class="empty-state fade-in">
+  <i data-lucide="shield-alert" style="width:64px;height:64px;color:#c62828;"></i>
+  <h3>Access Denied</h3>
+  <p>Your role (<strong>{{ user_role }}</strong>) is not authorized to access this area.</p>
+  <a href="{% url 'core:dashboard' %}" class="btn btn-charcoal">Return to Dashboard</a>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function(){
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  });
+</script>
+{% endblock %}

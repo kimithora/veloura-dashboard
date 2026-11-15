@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+
+{% load catalog_tags %}
+
+{% block title %}{{ title }} — VELOURA{% endblock %}
+
+{% block page_title %}{{ title }}{% endblock %}
+{% block page_subtitle %}{{ subtitle }} untuk variant {{ variant.sku }}{% endblock %}
+
+{% block content %}
+<div class="section" style="max-width:640px;">
+  <div class="section-header">
+    <h2 class="section-title"><i data-lucide="{{ icon }}"></i> {{ title }}</h2>
+  </div>
+
+  <div class="alert alert-gold mb-3">
+    <small>
+      <strong>Variant:</strong> {{ variant.sku }} — {{ variant.product.name }}<br>
+      <strong>Ukuran:</strong> {{ variant.get_size_display }} | <strong>Warna:</strong> {{ variant.color }}<br>
+      <strong>Stok saat ini:</strong> {{ variant.stock_quantity }}
+    </small>
+  </div>
+
+  <form method="post" class="row g-3">
+    {% csrf_token %}
+    <div class="col-md-6">
+      <label class="form-label">Kode Barcode (sendiri) <span style="color:#c62828;">*</span></label>
+      {{ form.barcode_value }}
+      {% if form.barcode_value.errors %}
+        <div class="text-danger small">{{ form.barcode_value.errors|join:", " }}</div>
+      {% endif %}
+      <div class="form-text">Contoh: 8901234567890. Harus unik dan belum digunakan.</div>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Jumlah Stok Tambah (Stock-in) <span style="color:#c62828;">*</span></label>
+      {{ form.quantity }}
+      {% if form.quantity.errors %}
+        <div class="text-danger small">{{ form.quantity.errors|join:", " }}</div>
+      {% endif %}
+      <div class="form-text">Stok akan bertambah sejumlah ini saat disimpan.</div>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Format Label</label>
+      {{ form.label_format }}
+    </div>
+    <div class="col-md-6 d-flex align-items-end">
+      <button type="submit" class="btn btn-gold w-100"><i data-lucide="barcode"></i> Buat Barcode &amp; Tambah Stok</button>
+    </div>
+    <div class="col-md-6 d-flex align-items-end">
+      <a href="{{ cancel_url }}" class="btn btn-charcoal w-100">Batal</a>
+    </div>
+  </form>
+
+  <div class="alert alert-info mt-4">
+    <small>
+      <strong>Apa yang terjadi saat disimpan?</strong><br>
+      1. Kode barcode disimpan pada variant produk ini.<br>
+      2. Stok bertambah sesuai jumlah yang diinput (movement type: PURCHASE).<br>
+      3. Setiap perubahan stok dicatat di Stock Movement Ledger.<br>
+      4. Setelah disimpan, tombol <strong>PNG</strong> dan <strong>PDF</strong> akan muncul di halaman detail produk untuk mencetak label.
+    </small>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function(){
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  });
+</script>
+{% endblock %}

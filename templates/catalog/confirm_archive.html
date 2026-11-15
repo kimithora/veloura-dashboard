@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+
+{% block title %}Archive {{ object_name }}{% endblock %}
+
+{% block page_title %}Archive {{ object_name }}{% endblock %}
+{% block page_subtitle %}{{ subtitle }}{% endblock %}
+
+{% block content %}
+<div class="section" style="max-width:600px;">
+  <div class="section-header">
+    <h2 class="section-title"><i data-lucide="archive"></i> Archive {{ object_name }}</h2>
+  </div>
+  <p>Archive <strong>{{ object }}</strong>? Historical sales records are preserved while the product is hidden from active listings.</p>
+  <form method="post" class="d-flex gap-2">
+    {% csrf_token %}
+    <button type="submit" class="btn" style="background:#b9975c;color:#fff;border:none;" data-confirm="Confirm archive?">Yes, archive</button>
+    <a href="{{ cancel_url }}" class="btn btn-gold">Cancel</a>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function(){
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  });
+</script>
+{% endblock %}

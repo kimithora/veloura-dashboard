@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ order.order_number }} — VELOURA{% endblock %}
+
+{% block page_title %}Custom Order {{ order.order_number }}{% endblock %}
+{% block page_subtitle %}{{ order.customer.full_name }}{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-md-8">
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title"><i data-lucide="scissors"></i> Order Details</h2>
+      </div>
+      <table class="table table-borderless">
+        <tr><th style="width:35%;">Order #</th><td>{{ order.order_number }}</td></tr>
+        <tr><th>Customer</th><td>{{ order.customer.full_name }}</td></tr>
+        <tr><th>Cashier</th><td>{{ order.cashier.username }}</td></tr>
+        <tr><th>Designer</th><td>{{ order.designer.username|default:'Not assigned' }}</td></tr>
+        <tr><th>Order Date</th><td>{{ order.order_date|date:"d M Y H:i" }}</td></tr>
+        <tr><th>Required Date</th><td>{{ order.required_date|date:"d M Y"|default:'-' }}</td></tr>
+        <tr><th>Status</th><td>
+          <span class="badge badge-status {% if order.status == 'COMPLETED' %}badge-status-completed{% elif order.status == 'CANCELLED' %}badge-status-rejected{% else %}badge-status-pending{% endif %}">
+            {{ order.get_status_display }}
+          </span>
+        </td></tr>
+        <tr><th>Description</th><td>{{ order.description|default:'-' }}</td></tr>
+        <tr><th>Total Amount</th><td>{{ VELOURA_CURRENCY_SYMBOL }} {{ order.total_amount|floatformat:0 }}</td></tr>
+        <tr><th>DP Paid</th><td>{{ VELOURA_CURRENCY_SYMBOL }} {{ order.dp_amount|floatformat:0 }}</td></tr>
+        <tr><th>Remaining Balance</th><td><strong>{{ VELOURA_CURRENCY_SYMBOL }} {{ order.remaining_balance|floatformat:0 }}</strong></td></tr>
+        {% if order.notes %}<tr><th>Notes</th><td>{{ order.notes }}</td></tr>{% endif %}
+      </table>
+    </div>
+
+    <div class="section mt-4">
+      <h3>Designs</h3>
+      {% if order.designs.exists %}
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr><th>Design ID</th><th>Name</th><th>Category</th><th>Status</th><th>Designer</th></tr>
+          </thead>
+          <tbody>
+            {% for d in order.designs.all %}
+            <tr>
+              <td>{{ d.design_id }}</td>
+              <td>{{ d.name }}</td>
+              <td>{{ d.get_category_display }}</td>
+              <td><span class="badge badge-soft">{{ d.get_status_display }}</span></td>
+              <td>{{ d.designer.username|default:'-' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-muted">No designs yet.</p>
+      {% endif %}
+    </div>
+
+    <div class="section mt-4">
+      <h3>Status History</h3>
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr><th>Date</th><th>Status</th><th>Changed By</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            {% for h in order.status_history.all %}
+            <tr>
+              <td>{{ h.changed_at|date:"d M Y H:i" }}</td>
+              <td>{{ h.get_status_display }}</td>
+              <td>{{ h.changed_by.username|default:'-' }}</td>
+              <td>{{ h.notes }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="section">
+      <h3>Update Status</h3>
+      <form id="statusForm" class="row g-2">
+        {% csrf_token %}
+        <div class="col-12">
+          <label class="form-label">New Status</label>
+          <select name="status" class="form-select" required>
+            {% for code, label in order.Status.choices %}
+              <option value="{{ code }}"{% if code == order.status %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Notes (optional)</label>
+          <input type="text" name="notes" class="form-control" placeholder="e.g. Fabric arrived...">
+        </div>
+        <div class="col-12 d-grid">
+          <button type="submit" class="btn btn-gold">Update Status</button>
+        </div>
+      </form>
+      <div id="statusMsg" class="mt-2"></div>
+    </div>
+
+    <div class="section mt-4">
+      <h3>Actions</h3>
+      <div class="d-grid gap-2">
+        <a href="#" class="btn btn-outline-gold" data-confirm="Design management coming soon."><i data-lucide="layout"></i> Manage Design</a>
+        <a href="#" class="btn btn-outline-gold" data-confirm="Production module coming soon."><i data-lucide="layers"></i> Production</a>
+        <a href="{% url 'orders:order_list' %}" class="btn btn-charcoal"><i data-lucide="arrow-left"></i> Back to Orders</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+  var form = document.getElementById('statusForm');
+  var msg = document.getElementById('statusMsg');
+  var orderId = {{ order.pk }};
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    var fd = new FormData(form);
+    fetch('/orders/' + orderId + '/status/', {
+      method: 'POST',
+      headers: {'X-CSRFToken': getCookie('csrftoken')},
+      body: fd,
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if(data.ok){
+        msg.innerHTML = '<div class="alert alert-success">Status updated to ' + data.new_status + '</div>';
+        setTimeout(function(){ location.reload(); }, 800);
+      } else {
+        msg.innerHTML = '<div class="alert alert-danger">' + (data.error || 'Failed') + '</div>';
+      }
+    });
+  });
+  function getCookie(name){
+    var v = document.cookie.match('(^|; )' + name + '=([^;]*)');
+    return v ? decodeURIComponent(v[2]) : null;
+  }
+});
+</script>
+{% endblock %}

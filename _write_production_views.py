@@ -1,0 +1,313 @@
+content = '''from django.views.generic import ListView, CreateView, UpdateView, DetailView
+from django.urls import reverse_lazy, reverse
+from django.contrib import messages
+from django.shortcuts import get_object_or_404, redirect
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
+from django.http import JsonResponse
+from django.db import transaction as db_transaction
+from django.contrib.contenttypes.models import ContentType
+
+from core.mixins import RoleRequiredMixin
+from .models import Production, MaterialRequest, MaterialUsage, Fitting, QualityControl
+from .forms import ProductionForm, MaterialRequestForm, MaterialRequestActionForm, QualityControlForm
+from orders.models import Order
+from inventory.models import Material, StockMovement
+
+
+class ProductionListView(RoleRequiredMixin, ListView):
+    required_roles = ('ADMIN', 'DESIGNER')
+    template_name = 'catalog/list.html'
+    context_object_name = 'productions'
+    paginate_by = 20
+
+    def get_queryset(self):
+        qs = Production.objects.select_related('order', 'designer').all()
+        if self.request.user.has_role('DESIGNER'):
+            qs = qs.filter(designer=self.request.user)
+        q = self.request.GET.get('q')
+        if q:
+            qs = qs.filter(production_id__icontains=q)
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        qs = self.get_queryset()
+        ctx.update({
+            'title': 'Production',
+            'subtitle': 'Manage production orders',
+            'icon': 'layers',
+            'object_list': qs,
+            'columns': [
+                {'header': 'Production ID', 'field': 'production_id'},
+                {'header': 'Order', 'field': 'order.order_number'},
+                {'header': 'Designer', 'field': 'designer.username'},
+                {'header': 'Status', 'field': 'get_status_display'},
+                {'header': 'Progress', 'field': 'progress'},
+                {'header': 'Est. Completion', 'field': 'estimated_completion'},
+            ],
+            'create_url': 'production:production_add',
+            'create_label': 'Add Production',
+            'detail_url': 'production:production_detail',
+            'empty_message': 'No production records found.',
+            'query': self.request.GET.get('q', ''),
+        })
+        return ctx
+
+
+class ProductionCreateView(RoleRequiredMixin, CreateView):
+    required_roles = ('ADMIN', 'DESIGNER')
+    model = Production
+    form_class = ProductionForm
+    template_name = 'catalog/form.html'
+    success_url = reverse_lazy('production:production_list')
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx.update({
+            'title': 'Add Production',
+            'subtitle': 'Create a new production record',
+            'icon': 'layers',
+            'cancel_url': reverse_lazy('production:production_list'),
+        })
+        return ctx
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Production created successfully.')
+        return super().form_valid(form)
+
+
+class ProductionDetailView(RoleRequiredMixin, DetailView):
+    required_roles = ('ADMIN', 'DESIGNER')
+    model = Production
+    template_name = 'production/production_detail.html'
+    context_object_name = 'production'
+
+    def get_queryset(self):
+        qs = Production.objects.select_related('order', 'designer').all()
+        if self.request.user.has_role('DESIGNER'):
+            qs = qs.filter(designer=self.request.user)
+        return qs
+
+
+# ---------------------------------------------------------------
+# Material Requests
+# ---------------------------------------------------------------
+class MaterialRequestListView(RoleRequiredMixin, ListView):
+    required_roles = ('ADMIN', 'DESIGNER')
+    template_name = 'catalog/list.html'
+    context_object_name = 'requests'
+    paginate_by = 20
+
+    def get_queryset(self):
+        qs = MaterialRequest.objects.select_related('production', 'material', 'requested_by').all()
+        if self.request.user.has_role('DESIGNER'):
+            qs = qs.filter(production__designer=self.request.user)
+        q = self.request.GET.get('q')
+        if q:
+            qs = qs.filter(request_id__icontains=q)
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        qs = self.get_queryset()
+        ctx.update({
+            'title': 'Material Requests',
+            'subtitle': 'Request raw/supporting materials from inventory',
+            'icon': 'package',
+            'object_list': qs,
+            'columns': [
+                {'header': 'Request ID', 'field': 'request_id'},
+                {'header': 'Production', 'field': 'production.production_id'},
+                {'header': 'Material', 'field': 'material.name'},
+                {'header': 'Quantity', 'field': 'quantity'},
+                {'header': 'Status', 'field': 'get_status_display'},
+                {'header': 'Requested By', 'field': 'requested_by.username'},
+            ],
+            'create_url': 'production:material_request_add',
+            'create_label': 'Request Material',
+            'empty_message': 'No material requests found.',
+            'query': self.request.GET.get('q', ''),
+        })
+        return ctx
+
+
+class MaterialRequestCreateView(RoleRequiredMixin, CreateView):
+    required_roles = ('ADMIN', 'DESIGNER')
+    model = MaterialRequest
+    form_class = MaterialRequestForm
+    template_name = 'catalog/form.html'
+    success_url = reverse_lazy('production:material_request_list')
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx.update({
+            'title': 'Request Material',
+            'subtitle': 'Request materials for production',
+            'icon': 'package',
+            'cancel_url': reverse_lazy('production:material_request_list'),
+        })
+        return ctx
+
+    def form_valid(self, form):
+        form.instance.requested_by = self.request.user
+        messages.success(self.request, 'Material request created.')
+        return super().form_valid(form)
+
+
+@login_required
+@require_POST
+def material_request_action(request, pk):
+    """Approve / fulfill / reject a material request."""
+    req = get_object_or_404(MaterialRequest, pk=pk)
+    if not request.user.has_role('ADMIN') and not request.user.has_role('DESIGNER'):
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+    form = MaterialRequestActionForm(request.POST)
+    if not form.is_valid():
+        return JsonResponse({'error': 'Invalid action'}, status=400)
+    action = form.cleaned_data['action']
+    with db_transaction.atomic():
+        if action == 'approve':
+            req.status = MaterialRequest.Status.APPROVED
+            req.approved_by = request.user
+            req.save(update_fields=['status', 'approved_by', 'updated_at'])
+            messages.success(request, 'Material request approved.')
+        elif action == 'fulfill':
+            req.status = MaterialRequest.Status.FULFILLED
+            req.approved_by = request.user
+            req.save(update_fields=['status', 'approved_by', 'updated_at'])
+            messages.success(request, 'Material request fulfilled.')
+        elif action == 'reject':
+            req.status = MaterialRequest.Status.REJECTED
+            req.approved_by = request.user
+            req.save(update_fields=['status', 'approved_by', 'updated_at'])
+            messages.success(request, 'Material request rejected.')
+    return JsonResponse({'ok': True, 'new_status': req.get_status_display()})
+
+
+# ---------------------------------------------------------------
+# Material Usage
+# ---------------------------------------------------------------
+class MaterialUsageCreateView(RoleRequiredMixin, CreateView):
+    required_roles = ('ADMIN', 'DESIGNER')
+    model = MaterialUsage
+    fields = ['production', 'material_request', 'material', 'quantity_used', 'notes']
+    template_name = 'catalog/form.html'
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx.update({
+            'title': 'Record Material Usage',
+            'subtitle': 'Record materials consumed in production',
+            'icon': 'activity',
+            'cancel_url': reverse_lazy('production:production_list'),
+        })
+        return ctx
+
+    def form_valid(self, form):
+        form.instance.used_by = self.request.user
+        with db_transaction.atomic():
+            usage = form.save(commit=False)
+            material = usage.material
+            previous_stock = material.stock_quantity
+            new_stock = previous_stock - usage.quantity_used
+            if new_stock < 0:
+                messages.error(self.request, 'Insufficient material stock.')
+                return self.form_invalid(form)
+            material.stock_quantity = new_stock
+            material.save(update_fields=['stock_quantity', 'updated_at'])
+            usage.save()
+            StockMovement.objects.create(
+                content_type=ContentType.objects.get_for_model(Material),
+                object_id=material.pk,
+                movement_type=StockMovement.MovementType.PRODUCTION_USAGE,
+                quantity=usage.quantity_used,
+                previous_stock=previous_stock,
+                new_stock=new_stock,
+                reference=usage.production.production_id,
+                user=self.request.user,
+                notes='Material usage for production {}'.format(usage.production.production_id),
+            )
+        messages.success(self.request, 'Material usage recorded. Inventory updated.')
+        return redirect('production:production_list')
+
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        form.fields['production'].widget.attrs['class'] = 'form-select'
+        form.fields['material_request'].widget.attrs['class'] = 'form-select'
+        form.fields['material'].widget.attrs['class'] = 'form-select'
+        form.fields['quantity_used'].widget.attrs.update({'class': 'form-control', 'step': '0.001'})
+        form.fields['notes'].widget.attrs.update({'class': 'form-control', 'rows': 3})
+        return form
+
+
+# ---------------------------------------------------------------
+# Quality Control
+# ---------------------------------------------------------------
+class QualityControlListView(RoleRequiredMixin, ListView):
+    required_roles = ('ADMIN', 'DESIGNER')
+    template_name = 'catalog/list.html'
+    context_object_name = 'qcs'
+    paginate_by = 20
+
+    def get_queryset(self):
+        qs = QualityControl.objects.select_related('order', 'qc_by').all()
+        if self.request.user.has_role('DESIGNER'):
+            qs = qs.filter(order__designer=self.request.user)
+        q = self.request.GET.get('q')
+        if q:
+            qs = qs.filter(qc_id__icontains=q)
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        qs = self.get_queryset()
+        ctx.update({
+            'title': 'Quality Control',
+            'subtitle': 'Quality control checklist for orders',
+            'icon': 'check-circle-2',
+            'object_list': qs,
+            'columns': [
+                {'header': 'QC ID', 'field': 'qc_id'},
+                {'header': 'Order', 'field': 'order.order_number'},
+                {'header': 'Status', 'field': 'get_status_display'},
+                {'header': 'QC By', 'field': 'qc_by.username'},
+                {'header': 'Date', 'field': 'qc_date'},
+            ],
+            'create_url': 'production:qc_add',
+            'create_label': 'Add QC Check',
+            'empty_message': 'No QC records found.',
+            'query': self.request.GET.get('q', ''),
+        })
+        return ctx
+
+
+class QualityControlCreateView(RoleRequiredMixin, CreateView):
+    required_roles = ('ADMIN', 'DESIGNER')
+    model = QualityControl
+    form_class = QualityControlForm
+    template_name = 'catalog/form.html'
+    success_url = reverse_lazy('production:qc_list')
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx.update({
+            'title': 'Quality Control',
+            'subtitle': 'Perform quality control check',
+            'icon': 'check-circle-2',
+            'cancel_url': reverse_lazy('production:qc_list'),
+        })
+        return ctx
+
+    def form_valid(self, form):
+        form.instance.qc_by = self.request.user
+        from django.utils import timezone
+        if form.instance.status == QualityControl.Status.PASSED:
+            form.instance.qc_date = timezone.now()
+        messages.success(self.request, 'QC check recorded.')
+        return super().form_valid(form)
+'''
+
+with open('production/views.py', 'w') as f:
+    f.write(content)
+print('production/views.py written')

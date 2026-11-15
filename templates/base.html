@@ -1,0 +1,116 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}VELOURA — Fashion Management System{% endblock %}</title>
+
+  <!-- Vendor CSS -->
+  <link rel="stylesheet" href="{% static 'vendor/bootstrap/css/bootstrap.min.css' %}">
+  <link rel="stylesheet" href="{% static 'css/veloura.css' %}">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap">
+
+  {% block extra_css %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+
+  <!-- Loading overlay -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+  </div>
+
+  <!-- Sidebar -->
+  <nav class="sidebar" id="sidebar">
+    <a href="{% url 'core:dashboard' %}" class="brand">
+      <i data-lucide="sparkles"></i>
+      <span>VELOURA</span>
+      <small>FASHION</small>
+    </a>
+
+    <div class="sidebar-user no-print" id="sidebarUser" style="display:none;">
+      <div class="user-card">
+        <div class="avatar">{{ user.first_name|slice:":1"|upper }}{{ user.last_name|slice:":1"|upper }}</div>
+        <div class="info">
+          <div class="name">{{ user.get_full_name|default:user.username }}</div>
+          <div class="role">{{ user_role }}</div>
+        </div>
+      </div>
+    </div>
+
+    <nav>
+      {% block sidebar %}{% endblock %}
+    </nav>
+  </nav>
+
+  <!-- Sidebar overlay (mobile) -->
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- Topbar -->
+  <header class="topbar no-print" id="topbar">
+    <button class="menu-toggle" id="menuToggle" aria-label="Toggle navigation">
+      <i data-lucide="menu"></i>
+    </button>
+
+    <div class="search">
+      <div class="input-group">
+        <input type="text" class="form-control" placeholder="Search products, customers, orders…"
+               aria-label="Search">
+        <button class="btn btn-charcoal" type="button">
+          <i data-lucide="search"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="topbar-right">
+      <a href="#" class="nav-link position-relative" id="navNotifications" aria-label="Notifications">
+        <i data-lucide="bell"></i>
+        <span class="badge-count" id="notifBadge" style="display:none;">0</span>
+      </a>
+
+      <div class="profile-dropdown dropdown">
+        <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+          <i data-lucide="user"></i>
+          <span>{{ user.get_full_name|default:user.username }}</span>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li><a class="dropdown-item" href="#"><i data-lucide="user" class="me-2"></i>Profile</a></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><a class="dropdown-item" href="{% url 'accounts:logout' %}"><i data-lucide="log-out" class="me-2"></i>Sign out</a></li>
+        </ul>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main content -->
+  <main class="main-content">
+    <header class="page-header">
+      <div class="container-xxl">
+        <h1>{% block page_title %}Dashboard{% endblock %}</h1>
+        <p class="subtitle">{% block page_subtitle %}{% endblock %}</p>
+      </div>
+    </header>
+
+    <div class="page-body">
+      <div class="container-xxl">
+        {% if messages %}
+          {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} fade-in" role="alert">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+
+        {% block content %}{% endblock %}
+      </div>
+    </div>
+  </main>
+
+  <!-- Vendor JS -->
+  <script src="{% static 'vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+  <script src="{% static 'vendor/lucide/lucide.min.js' %}"></script>
+  <script src="{% static 'js/veloura.js' %}"></script>
+
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,760 @@
+/*
+ * VELOURA — Fashion Management System
+ * Custom stylesheet
+ *
+ * Color palette:
+ *   Charcoal black   #1B1818
+ *   Warm ivory       #F7F3EE
+ *   Champagne beige  #E9E2D6
+ *   Muted gold       #B9975C
+ *   Soft gray        #8A8A8A
+ *
+ * Typography:
+ *   Playfair Display (serif) — branding & headings
+ *   Inter (sans-serif)      — dashboard content
+ */
+
+:root {
+  --veloura-charcoal: #1B1818;
+  --veloura-charcoal-soft: #2A2626;
+  --veloura-ivory: #F7F3EE;
+  --veloura-champagne: #E9E2D6;
+  --veloura-gold: #B9975C;
+  --veloura-gold-light: #D4C4A8;
+  --veloura-gray: #8A8A8A;
+  --veloura-gray-light: #C9C4BC;
+  --veloura-white: #FFFFFF;
+  --veloura-border: #D9D3C8;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--veloura-ivory);
+  color: var(--veloura-charcoal);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 0.925rem;
+  line-height: 1.5;
+}
+
+h1, h2, h3, h4, h5, h6, .brand-serif {
+  font-family: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  color: var(--veloura-charcoal);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+/* -------------------------------------------------
+   Brand / typography
+   ------------------------------------------------- */
+.brand-serif {
+  letter-spacing: 0.02em;
+}
+
+.text-gold {
+  color: var(--veloura-gold) !important;
+}
+
+.bg-gold {
+  background-color: var(--veloura-gold) !important;
+}
+
+.border-gold {
+  border-color: var(--veloura-gold) !important;
+}
+
+.bg-ivory {
+  background-color: var(--veloura-ivory) !important;
+}
+
+.bg-champagne {
+  background-color: var(--veloura-champagne) !important;
+}
+
+.text-charcoal {
+  color: var(--veloura-charcoal) !important;
+}
+
+.text-gold-soft {
+  color: var(--veloura-gray) !important;
+}
+
+/* -------------------------------------------------
+   Sidebar
+   ------------------------------------------------- */
+.sidebar {
+  width: 260px;
+  background: var(--veloura-charcoal);
+  color: var(--veloura-ivory);
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.25s ease;
+  box-shadow: 2px 0 12px rgba(0,0,0,0.15);
+}
+
+.sidebar .brand {
+  padding: 1.5rem 1.25rem;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--veloura-ivory);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  border-bottom: 1px solid rgba(247,243,238,0.12);
+}
+
+.sidebar .brand i {
+  color: var(--veloura-gold);
+  font-size: 1.6rem;
+}
+
+.sidebar .brand small {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.62rem;
+  color: var(--veloura-gold-light);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-left: auto;
+}
+
+.sidebar nav {
+  flex: 1;
+  padding: 1rem 0;
+  overflow-y: auto;
+}
+
+.sidebar .nav-group-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--veloura-gray);
+  padding: 0.85rem 1.25rem 0.4rem 1.25rem;
+  font-weight: 600;
+}
+
+.sidebar .nav-link {
+  color: var(--veloura-champagne);
+  padding: 0.7rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  text-decoration: none;
+  font-size: 0.9rem;
+  border-left: 3px solid transparent;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+
+.sidebar .nav-link i {
+  width: 20px;
+  text-align: center;
+  font-size: 1.05rem;
+  color: var(--veloura-gray-light);
+}
+
+.sidebar .nav-link:hover,
+.sidebar .nav-link:focus {
+  color: var(--veloura-ivory);
+  background: rgba(185, 151, 92, 0.10);
+  border-left-color: var(--veloura-gold);
+  text-decoration: none;
+}
+
+.sidebar .nav-link.active {
+  color: var(--veloura-ivory);
+  background: rgba(185, 151, 92, 0.16);
+  border-left-color: var(--veloura-gold);
+}
+
+.sidebar .nav-link.active i {
+  color: var(--veloura-gold);
+}
+
+.sidebar .divider {
+  height: 1px;
+  background: rgba(247,243,238,0.12);
+  margin: 0.5rem 0;
+}
+
+.sidebar .user-card {
+  padding: 1.25rem;
+  border-top: 1px solid rgba(247,243,238,0.12);
+}
+
+.sidebar .user-card .avatar {
+  width: 40px;
+  height: 40px;
+  background: var(--veloura-gold);
+  color: var(--veloura-charcoal);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.sidebar .user-card .info {
+  overflow: hidden;
+}
+
+.sidebar .user-card .name {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--veloura-ivory);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar .user-card .role {
+  font-size: 0.72rem;
+  color: var(--veloura-gold-light);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.sidebar-overlay {
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(27,24,24,0.45);
+  z-index: 990;
+  display: none;
+  backdrop-filter: blur(2px);
+}
+
+/* -------------------------------------------------
+   Top navbar
+   ------------------------------------------------- */
+.topbar {
+  position: fixed;
+  top: 0;
+  left: 260px;
+  right: 0;
+  height: 64px;
+  background: var(--veloura-ivory);
+  border-bottom: 1px solid var(--veloura-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.5rem;
+  z-index: 900;
+}
+
+.topbar .menu-toggle {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--veloura-charcoal);
+  font-size: 1.35rem;
+  cursor: pointer;
+}
+
+.topbar .search {
+  flex: 0 1 340px;
+}
+
+.topbar .search .form-control {
+  background: var(--veloura-white);
+  border: 1px solid var(--veloura-border);
+  color: var(--veloura-charcoal);
+  padding: 0.55rem 1rem;
+  border-radius: 50px;
+  font-size: 0.88rem;
+}
+
+.topbar .search .form-control:focus {
+  border-color: var(--veloura-gold);
+  box-shadow: 0 0 0 3px rgba(185,151,92,0.15);
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.topbar-right .nav-link {
+  color: var(--veloura-charcoal);
+  text-decoration: none;
+  font-size: 1.25rem;
+  padding: 0.35rem;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: background 0.2s;
+}
+
+.topbar-right .nav-link:hover {
+  background: var(--veloura-champagne);
+  color: var(--veloura-gold);
+}
+
+.topbar-right .badge-count {
+  position: absolute;
+  top: 6px; right: 2px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  background: #d32f2f;
+  color: #fff;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.profile-dropdown .btn {
+  background: transparent;
+  border: none;
+  color: var(--veloura-charcoal);
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 50px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.profile-dropdown .btn:hover {
+  background: var(--veloura-champagne);
+}
+
+.profile-dropdown .btn i {
+  font-size: 1.1rem;
+  color: var(--veloura-gold);
+}
+
+/* -------------------------------------------------
+   Main content
+   ------------------------------------------------- */
+.main-content {
+  margin-left: 260px;
+  padding-top: 64px;
+  min-height: 100vh;
+}
+
+.page-header {
+  padding: 1.75rem 2rem 1rem 2rem;
+}
+
+.page-header h1 {
+  font-size: 1.75rem;
+  margin: 0 0 0.25rem 0;
+}
+
+.page-header .subtitle {
+  color: var(--veloura-gray);
+  font-size: 0.92rem;
+  margin: 0;
+}
+
+.page-body {
+  padding: 0 2rem 2.5rem 2rem;
+}
+
+/* -------------------------------------------------
+   Dashboard cards
+   ------------------------------------------------- */
+.stat-card {
+  background: var(--veloura-white);
+  border: 1px solid var(--veloura-border);
+  border-radius: 16px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+}
+
+.stat-card .label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--veloura-gray);
+  font-weight: 600;
+}
+
+.stat-card .value {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 2.1rem;
+  font-weight: 600;
+  color: var(--veloura-charcoal);
+  margin: 0;
+}
+
+.stat-card .delta {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.stat-card .delta.up { color: #2e7d32; }
+.stat-card .delta.down { color: #c62828; }
+.stat-card .delta.neutral { color: var(--veloura-gray); }
+
+.stat-card .icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  align-self: flex-end;
+}
+
+.stat-card .icon.gold { background: rgba(185,151,92,0.12); color: var(--veloura-gold); }
+.stat-card .icon.ivory { background: rgba(247,243,238,0.12); color: #a1887f; }
+.stat-card .icon.gray { background: rgba(138,138,138,0.12); color: var(--veloura-gray); }
+
+/* -------------------------------------------------
+   Section
+   ------------------------------------------------- */
+.section {
+  background: var(--veloura-white);
+  border: 1px solid var(--veloura-border);
+  border-radius: 16px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.section-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--veloura-charcoal);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.section-title i {
+  color: var(--veloura-gold);
+  font-size: 1.15rem;
+}
+
+/* -------------------------------------------------
+   Tables
+   ------------------------------------------------- */
+.table {
+  color: var(--veloura-charcoal);
+  font-size: 0.875rem;
+}
+
+.table thead th {
+  background: var(--veloura-ivory);
+  color: var(--veloura-gray);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  border-bottom: 2px solid var(--veloura-border);
+  padding: 0.85rem 0.75rem;
+}
+
+.table td {
+  padding: 0.85rem 0.75rem;
+  border-bottom: 1px solid var(--veloura-border);
+  vertical-align: middle;
+}
+
+.table tr:hover td {
+  background: rgba(247,243,238,0.45);
+}
+
+/* -------------------------------------------------
+   Badges
+   ------------------------------------------------- */
+.badge {
+  font-weight: 600;
+  padding: 0.45rem 0.8rem;
+  border-radius: 50px;
+  font-size: 0.78rem;
+}
+
+.badge-soft {
+  background: rgba(185,151,92,0.12);
+  color: var(--veloura-gold);
+}
+
+.badge-status.pending { background: #fff3cd; color: #856404; }
+.badge-status.approved { background: #d1e7dd; color: #0f5132; }
+.badge-status.rejected { background: #f8d7da; color: #842029; }
+.badge-status.completed { background: #d1e7dd; color: #0f5132; }
+.badge-status.in-progress { background: #cfe2f3; color: #055160; }
+.badge-status.draft { background: #e2e3e5; color: #383d41; }
+
+/* -------------------------------------------------
+   Forms
+   ------------------------------------------------- */
+.form-control, .form-select {
+  background: var(--veloura-white);
+  border: 1px solid var(--veloura-border);
+  color: var(--veloura-charcoal);
+  padding: 0.6rem 0.9rem;
+  border-radius: 10px;
+  font-size: 0.9rem;
+}
+
+.form-control:focus, .form-select:focus {
+  border-color: var(--veloura-gold);
+  box-shadow: 0 0 0 3px rgba(185,151,92,0.15);
+  color: var(--veloura-charcoal);
+}
+
+.form-label {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--veloura-charcoal);
+  margin-bottom: 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.form-text {
+  color: var(--veloura-gray);
+  font-size: 0.8rem;
+}
+
+.input-group > .form-control,
+.input-group > .form-select {
+  border-radius: 10px 0 0 10px;
+}
+
+.input-group .btn {
+  border-radius: 0 10px 10px 0;
+}
+
+/* -------------------------------------------------
+   Buttons
+   ------------------------------------------------- */
+.btn {
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.88rem;
+  padding: 0.6rem 1.25rem;
+  transition: all 0.2s;
+}
+
+.btn-gold {
+  background: var(--veloura-gold);
+  color: var(--veloura-white);
+  border: none;
+}
+
+.btn-gold:hover {
+  background: #a3844f;
+  color: var(--veloura-white);
+}
+
+.btn-outline-gold {
+  color: var(--veloura-gold);
+  border: 1px solid var(--veloura-gold);
+  background: transparent;
+}
+
+.btn-outline-gold:hover {
+  background: var(--veloura-gold);
+  color: var(--veloura-white);
+}
+
+.btn-charcoal {
+  background: var(--veloura-charcoal);
+  color: var(--veloura-white);
+  border: none;
+}
+
+.btn-charcoal:hover {
+  background: #3a3434;
+  color: var(--veloura-white);
+}
+
+.btn-sm {
+  padding: 0.4rem 0.85rem;
+  font-size: 0.82rem;
+}
+
+/* -------------------------------------------------
+   Modal
+   ------------------------------------------------- */
+.modal-content {
+  border: none;
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.18);
+  background: var(--veloura-white);
+}
+
+.modal-header {
+  border-bottom: 1px solid var(--veloura-border);
+  padding: 1.1rem 1.5rem;
+}
+
+.modal-header .modal-title {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.15rem;
+  color: var(--veloura-charcoal);
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.modal-footer {
+  border-top: 1px solid var(--veloura-border);
+  padding: 1rem 1.5rem;
+}
+
+/* -------------------------------------------------
+   Alerts
+   ------------------------------------------------- */
+.alert {
+  border: none;
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  font-size: 0.9rem;
+}
+
+.alert-gold {
+  background: #fffbf0;
+  color: #7a5c1f;
+  border-left: 4px solid var(--veloura-gold);
+}
+
+.alert-success {
+  background: #eef6ee;
+  color: #2f6b3a;
+  border-left: 4px solid #2e7d32;
+}
+
+.alert-danger {
+  background: #fbeded;
+  color: #a32a2a;
+  border-left: 4px solid #c62828;
+}
+
+/* -------------------------------------------------
+   Empty state
+   ------------------------------------------------- */
+.empty-state {
+  text-align: center;
+  padding: 4rem 1rem;
+  color: var(--veloura-gray);
+}
+
+.empty-state i {
+  font-size: 3.5rem;
+  color: var(--veloura-gold-light);
+  margin-bottom: 1rem;
+}
+
+.empty-state h3 {
+  font-size: 1.3rem;
+  color: var(--veloura-charcoal);
+  margin-bottom: 0.5rem;
+}
+
+/* -------------------------------------------------
+   Charts wrapper
+   ------------------------------------------------- */
+.chart-wrap {
+  position: relative;
+  height: 260px;
+}
+
+/* -------------------------------------------------
+   Responsive
+   ------------------------------------------------- */
+@media (max-width: 991.98px) {
+  .sidebar {
+    transform: translateX(-100%);
+  }
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  .sidebar-overlay.open {
+    display: block;
+  }
+  .topbar {
+    left: 0;
+  }
+  .topbar .menu-toggle {
+    display: block;
+  }
+  .main-content {
+    margin-left: 0;
+  }
+  .topbar .search {
+    flex: 1;
+  }
+}
+
+.print-only {
+  display: none;
+}
+
+@media print {
+  .print-only { display: block; }
+  .no-print { display: none !important; }
+  body { background: #fff; color: #000; }
+  .stat-card, .section { box-shadow: none; border: 1px solid #ccc; }
+}
+
+/* Utility */
+.shadow-soft { box-shadow: 0 2px 10px rgba(0,0,0,0.04); }
+.rounded-lg { border-radius: 16px; }
+
+.fade-in {
+  animation: fadeIn 0.4s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Overlay / spinner */
+.loading-overlay {
+  position: fixed; inset: 0; background: rgba(247,243,238,0.75);
+  z-index: 9999; display: flex; align-items: center; justify-content: center;
+  display: none;
+}
+
+.spinner {
+  width: 40px; height: 40px; border: 4px solid var(--veloura-border);
+  border-top-color: var(--veloura-gold);
+  border-radius: 50%; animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }

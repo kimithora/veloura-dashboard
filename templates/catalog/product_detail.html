@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+
+{% load catalog_tags %}
+
+{% block title %}{{ product.name }}{% endblock %}
+
+{% block page_title %}{{ product.name }}{% endblock %}
+{% block page_subtitle %}{{ product.sku }} &middot; {{ product.get_source_display }}{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-md-4">
+    <div class="section">
+      {% if product.image %}
+        <img src="{{ product.image.url }}" alt="{{ product.name }}" class="img-fluid rounded mb-3" style="max-height:320px;object-fit:cover;">
+      {% else %}
+        <div class="bg-champagne rounded d-flex align-items-center justify-content-center text-gray mb-3" style="height:260px;">
+          <i data-lucide="image" style="width:48px;height:48px;color:var(--veloura-gray);"></i>
+        </div>
+      {% endif %}
+      <span class="badge badge-soft">{{ product.get_source_display }}</span>
+      <span class="badge badge-soft{% if product.status == 'ACTIVE' %} bg-success text-white{% else %}{% endif %}">{{ product.get_status_display }}</span>
+    </div>
+  </div>
+  <div class="col-md-8">
+    <div class="section">
+      <h3>Product Details</h3>
+      <table class="table table-borderless">
+        <tr><th style="width:35%;">SKU</th><td>{{ product.sku }}</td></tr>
+        <tr><th>Category</th><td>{{ product.category.name }}</td></tr>
+        <tr><th>Brand</th><td>{{ product.brand.name|default:'-' }}</td></tr>
+        <tr><th>Supplier</th><td>{{ product.supplier.name|default:'-' }}</td></tr>
+        <tr><th>Purchase Price</th><td>{{ VELOURA_CURRENCY_SYMBOL }} {{ product.purchase_price }}</td></tr>
+        <tr><th>Selling Price</th><td>{{ VELOURA_CURRENCY_SYMBOL }} {{ product.selling_price }}</td></tr>
+        <tr><th>Min Stock</th><td>{{ product.min_stock }}</td></tr>
+        <tr><th>Total Stock</th><td>{{ product.total_stock }}</td></tr>
+        <tr><th>Description</th><td>{{ product.description|default:'-' }}</td></tr>
+      </table>
+    </div>
+
+    <div class="section mt-4">
+      <h3>Variants</h3>
+      <a href="{% url 'catalog:variant_add' product_pk=product.pk %}" class="btn btn-sm btn-gold mb-2"><i data-lucide="plus"></i> Add Variant</a>
+      {% if product.variants.exists %}
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>SKU</th><th>Size</th><th>Color</th><th>Barcode</th><th>Stock</th><th>Price</th><th>Status</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for v in product.variants.all %}
+            <tr>
+              <td>{{ v.sku }}</td>
+              <td>{{ v.get_size_display }}</td>
+              <td>{{ v.color }}</td>
+              <td>{{ v.barcode|default:'-' }}</td>
+              <td>{{ v.stock_quantity }}{% if v.is_low_stock %} <span class="badge bg-danger text-white">low</span>{% endif %}</td>
+              <td>{{ VELOURA_CURRENCY_SYMBOL }} {{ v.effective_selling_price }}</td>
+              <td><span class="badge {% if v.is_active %}bg-success text-white{% else %}bg-secondary{% endif %}">{{ v.is_active|yesno:'Active,Inactive' }}</span></td>
+              <td>
+                <a href="{% url 'catalog:variant_edit' pk=v.pk %}" class="btn btn-sm btn-outline-gold mb-1"><i data-lucide="edit-2"></i></a>
+                {% if v.barcode %}
+                  {% with bc=v.barcodes.first %}
+                  <a href="{% url 'catalog:barcode_label_png' barcode_pk=bc.pk %}" class="btn btn-sm btn-charcoal mb-1"><i data-lucide="barcode"></i> PNG</a>
+                  <a href="{% url 'catalog:barcode_label_pdf' barcode_pk=bc.pk %}" class="btn btn-sm btn-charcoal mb-1"><i data-lucide="file-text"></i> PDF</a>
+                  {% endwith %}
+                {% else %}
+                  <a href="{% url 'catalog:custom_barcode' variant_pk=v.pk %}" class="btn btn-sm btn-outline-gold mb-1" style="font-size:0.75rem;"><i data-lucide="plus-circle"></i> Buat Barcode</a>
+                {% endif %}
+                <a href="{% url 'catalog:variant_delete' pk=v.pk %}" class="btn btn-sm" style="color:#c62828;border:1px solid #c62828;" data-confirm="Delete variant?"><i data-lucide="trash-2"></i></a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-muted">No variants yet. Add a variant to manage stock and barcodes.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="section mt-4">
+  <div class="d-flex justify-content-between align-items-center">
+    <h3>Barcode Label Generator</h3>
+    <span class="badge badge-soft">Code 128 format</span>
+  </div>
+  <div class="alert alert-gold">
+    Klik tombol <strong>PNG</strong> atau <strong>PDF</strong> pada setiap variant di tabel di atas untuk mencetak label barcode. Label mencakup SKU, nama produk, dan barcode Code 128 yang dapat discan.
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function(){
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  });
+</script>
+{% endblock %}

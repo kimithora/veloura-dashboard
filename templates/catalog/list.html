@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+
+{% load catalog_tags %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block page_title %}{{ title }}{% endblock %}
+{% block page_subtitle %}{{ subtitle }}{% endblock %}
+
+{% block content %}
+<div class="section">
+  <div class="section-header">
+    <h2 class="section-title"><i data-lucide="{{ icon }}"></i> {{ title }}</h2>
+    {% if create_url %}
+      <a href="{{ create_url }}" class="btn btn-gold"><i data-lucide="plus"></i> {{ create_label }}</a>
+    {% endif %}
+  </div>
+
+  <form method="get" class="row g-3 mb-4 align-items-end">
+    <div class="col-md-4">
+      <div class="input-group">
+        <span class="input-group-text"><i data-lucide="search"></i></span>
+        <input type="text" name="q" class="form-control" value="{{ query }}" placeholder="Search...">
+      </div>
+    </div>
+    {% if filters %}
+      {% for filter_item in filters %}
+      <div class="col-md-2">
+        <label class="form-label d-block mb-1">{{ filter_item.label }}</label>
+        <select name="{{ filter_item.name }}" class="form-select form-select-sm">
+          <option value="">All</option>
+          {% for val, label in filter_item.choices %}
+            <option value="{{ val }}"{% if current_filters|get_item:filter_item.name == val %} selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endfor %}
+    {% endif %}
+    <div class="col-md-2 d-grid">
+      <button class="btn btn-charcoal" type="submit"><i data-lucide="search"></i> Filter</button>
+    </div>
+    <div class="col-md-2 d-grid">
+      {% if request.GET.urlencode %}
+        <a href="{{ request.path }}" class="btn btn-outline-gold"><i data-lucide="rotate-ccw"></i> Reset</a>
+      {% endif %}
+    </div>
+  </form>
+
+  {% if object_list %}
+  <div class="table-responsive">
+    <table class="table">
+      <thead>
+        <tr>
+          {% for col in columns %}
+            <th>{{ col.header }}</th>
+          {% endfor %}
+          <th style="width:200px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for obj in object_list %}
+        <tr>
+          {% for col in columns %}
+            <td>
+              {% if col.detail_url %}
+                <a href="{% url col.detail_url obj.pk %}">{{ obj|get_attr:col.field }}</a>
+              {% else %}
+                {{ obj|get_attr:col.field }}
+              {% endif %}
+            </td>
+          {% endfor %}
+          <td>
+            {% if edit_url %}<a href="{% url edit_url obj.pk %}" class="btn btn-sm btn-outline-gold mb-1"><i data-lucide="edit-2"></i></a>{% endif %}
+            {% if detail_url %}<a href="{% url detail_url obj.pk %}" class="btn btn-sm btn-charcoal mb-1"><i data-lucide="eye"></i></a>{% endif %}
+            {% if delete_url %}<a href="{% url delete_url obj.pk %}" class="btn btn-sm" style="color:#c62828;border:1px solid #c62828;" data-confirm="Delete this record?"><i data-lucide="trash-2"></i></a>{% endif %}
+            {% if archive_url %}<a href="{% url archive_url obj.pk %}" class="btn btn-sm" style="color:#b9975c;border:1px solid #b9975c;" data-confirm="Archive this record?"><i data-lucide="archive"></i></a>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include 'catalog/pagination.html' %}
+  {% else %}
+  <div class="empty-state">
+    <i data-lucide="inbox"></i>
+    <h3>No records found</h3>
+    <p>{{ empty_message|default:"There are no records matching your criteria." }}</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function(){
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  });
+</script>
+{% endblock %}

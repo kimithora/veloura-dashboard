@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+
+{% block title %}Detail Pembayaran — VELOURA{% endblock %}
+
+{% block page_title %}Detail Pembayaran{% endblock %}
+{% block page_subtitle %}{{ payment.transaction.transaction_number }}{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-md-8">
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title"><i data-lucide="credit-card"></i> Detail Pembayaran</h2>
+      </div>
+      <table class="table table-borderless">
+        <tr><th style="width:35%;">Transaksi</th><td><a href="{% url 'sales:transaction_detail' pk=payment.transaction.pk %}">{{ payment.transaction.transaction_number }}</a></td></tr>
+        <tr><th>Jumlah</th><td><strong>{{ VELOURA_CURRENCY_SYMBOL }} {{ payment.amount|floatformat:0 }}</strong></td></tr>
+        <tr><th>Tipe Pembayaran</th><td>{{ payment.get_payment_type_display }}</td></tr>
+        <tr><th>Metode</th><td>{{ payment.get_method_display }}</td></tr>
+        <tr><th>Status</th><td>
+          <span class="badge {% if payment.status == 'CONFIRMED' %}bg-success text-white{% elif payment.status == 'PENDING' %}bg-warning text-dark{% elif payment.status == 'REFUNDED' %}bg-danger text-white{% else %}bg-secondary text-white{% endif %}">
+            {{ payment.get_status_display }}
+          </span>
+        </td></tr>
+        <tr><th>Jatuh Tempo</th><td>{{ payment.due_date|date:"d M Y"|default:'-' }}</td></tr>
+        <tr><th>Dicatakan pada</th><td>{{ payment.created_at|date:"d M Y H:i" }}</td></tr>
+        <tr><th>Dikonfirmasi pada</th><td>{{ payment.confirmed_at|date:"d M Y H:i"|default:'Belum dikonfirmasi' }}</td></tr>
+        <tr><th>Dikonfirmasi oleh</th><td>{{ payment.confirmed_by.username|default:'-' }}</td></tr>
+        <tr><th>Bukti pembayaran</th><td>
+          {% if payment.payment_proof %}
+            <a href="{{ payment.payment_proof.url }}" target="_blank" class="btn btn-sm btn-outline-gold"><i data-lucide="image"></i> Lihat Bukti</a>
+          {% else %}
+            <span class="text-muted">-</span>
+          {% endif %}
+        </td></tr>
+        {% if payment.notes %}<tr><th>Catatan</th><td>{{ payment.notes }}</td></tr>{% endif %}
+      </table>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="section">
+      <h3>Ringkasan Transaksi</h3>
+      <table class="table table-borderless">
+        <tr><th>Grand Total</th><td class="text-end">{{ VELOURA_CURRENCY_SYMBOL }} {{ payment.transaction.grand_total|floatformat:0 }}</td></tr>
+        <tr><th>Sudah Dibayar (terkonfirmasi)</th><td class="text-end">{{ VELOURA_CURRENCY_SYMBOL }} {{ payment.transaction.paid_amount|floatformat:0 }}</td></tr>
+        <tr><th>Sisa Tagihan</th><td class="text-end"><strong>{{ VELOURA_CURRENCY_SYMBOL }} {{ payment.transaction.remaining_balance|floatformat:0 }}</strong></td></tr>
+        <tr><th>Status Pembayaran</th><td>{{ payment.transaction.get_payment_status_display }}</td></tr>
+        <tr><th>Status Order</th><td>{{ payment.transaction.get_status_display }}</td></tr>
+        <tr><th>Stok Dikurangi</th><td>{{ payment.transaction.stock_deducted|yesno:"Ya,Belum" }}</td></tr>
+      </table>
+    </div>
+
+    <div class="section mt-4">
+      <h3>Aksi</h3>
+      <div class="d-grid gap-2">
+        {% if payment.status == 'PENDING' or payment.status == 'CONFIRMED' %}
+          <button class="btn" style="background:#c62828;color:#fff;border:none;" onclick="voidPayment({{ payment.pk }})">
+            <i data-lucide="x-circle"></i> Batalkan / Refund
+          </button>
+        {% endif %}
+        <a href="{% url 'sales:transaction_detail' pk=payment.transaction.pk %}" class="btn btn-charcoal"><i data-lucide="arrow-left"></i> Kembali ke Transaksi</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+});
+
+function voidPayment(paymentId){
+  if(!confirm('Batalkan atau refund pembayaran ini?')) return;
+  fetch('/payments/void/' + paymentId + '/', {
+    method: 'POST',
+    headers: {'X-CSRFToken': getCookie('csrftoken')},
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    if(data.ok){ location.reload(); }
+    else { alert('Gagal: ' + data.error); }
+  });
+}
+
+function getCookie(name){
+  var v = document.cookie.match('(^|; )' + name + '=([^;]*)');
+  return v ? decodeURIComponent(v[2]) : null;
+}
+</script>
+{% endblock %}
