@@ -13,4 +13,5 @@ urlpatterns = [
     path('checkout/', views.checkout, name='checkout'),
     path('<int:pk>/', views.TransactionDetailView.as_view(), name='transaction_detail'),
     path('<int:pk>/invoice/', views.invoice_pdf, name='invoice_pdf'),
+    path('<int:pk>/cancel/', views.cancel_transaction, name='cancel_transaction'),
 ]

@@ -47,10 +47,10 @@
 
   <div class="divider"></div>
   <div class="nav-group-label">Coming Soon</div>
-  <a href="#" class="nav-link" onclick="return false;" data-confirm="Analytics coming in Phase 6.">
+  <a href="{% url 'analytics:index' %}" class="nav-link" onclick="return false;" data-confirm="Analytics coming in Phase 6.">
     <i data-lucide="bar-chart-2"></i> Analytics
   </a>
-  <a href="#" class="nav-link" onclick="return false;" data-confirm="Reports coming in Phase 6.">
+  <a href="{% url 'sales:transaction_list' %}" class="nav-link" onclick="return false;" data-confirm="Reports coming in Phase 6.">
     <i data-lucide="file-text"></i> Reports
   </a>
   <a href="#" class="nav-link" onclick="return false;" data-confirm="System settings coming in Phase 6.">
@@ -63,7 +63,7 @@
   <div class="col-md-6 col-lg-3">
     <div class="stat-card">
       <div class="label">Total Users</div>
-      <p class="value">—</p>
+      <p class="value">{{ total_users }}</p>
       <p class="delta neutral">Role-based access active</p>
       <div class="icon gold"><i data-lucide="users"></i></div>
     </div>
@@ -71,7 +71,7 @@
   <div class="col-md-6 col-lg-3">
     <div class="stat-card">
       <div class="label">Total Products</div>
-      <p class="value">—</p>
+      <p class="value">{{ total_products }}</p>
       <p class="delta neutral">Catalogue module active</p>
       <div class="icon ivory"><i data-lucide="tag"></i></div>
     </div>
@@ -79,7 +79,7 @@
   <div class="col-md-6 col-lg-3">
     <div class="stat-card">
       <div class="label">Sales Today</div>
-      <p class="value">—</p>
+      <p class="value">{{ VELOURA_CURRENCY_SYMBOL }} {{ sales_today|floatformat:0 }}</p>
       <p class="delta up">POS module active</p>
       <div class="icon gold"><i data-lucide="dollar-sign"></i></div>
     </div>
@@ -87,7 +87,7 @@
   <div class="col-md-6 col-lg-3">
     <div class="stat-card">
       <div class="label">Low Stock Alerts</div>
-      <p class="value">—</p>
+      <p class="value">{{ low_stock_count }}</p>
       <p class="delta neutral">Inventory module active</p>
       <div class="icon gray"><i data-lucide="alert-circle"></i></div>
     </div>

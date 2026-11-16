@@ -10,6 +10,9 @@ from django.core.paginator import Paginator
 
 from sales.models import Transaction
 from sales.service import TransactionService, InsufficientStockError
+from inventory.models import StockMovement
+from catalog.models import ProductVariant
+from django.contrib.contenttypes.models import ContentType
 from .models import Payment
 from .forms import PaymentRecordForm
 
@@ -49,6 +52,12 @@ def confirm_payment(request, payment_pk):
 
     try:
         with db_transaction.atomic():
+            # Lock payment and transaction rows to prevent double confirmation (race condition).
+            payment = Payment.objects.select_for_update().get(pk=payment_pk)
+            tx = Transaction.objects.select_for_update().get(pk=tx.pk)
+            if payment.status != Payment.Status.PENDING:
+                return JsonResponse({'error': 'Pembayaran sudah diproses'}, status=400)
+
             confirmed_total = Payment.objects.filter(
                 transaction=tx, status=Payment.Status.CONFIRMED
             ).aggregate(total=Sum('amount'))['total'] or 0
@@ -79,7 +88,7 @@ def confirm_payment(request, payment_pk):
         return JsonResponse({'error': str(e)}, status=400)
 
     messages.success(request, 'Pembayaran dikonfirmasi. Stok telah dikurangi.')
-    return JsonResponse({'ok': True})
+    return JsonResponse({'ok': True, 'payment_status': tx.payment_status, 'status': tx.status})
 
 
 @login_required
@@ -92,6 +101,10 @@ def void_payment(request, payment_pk):
         return JsonResponse({'error': 'Unauthorized'}, status=403)
 
     with db_transaction.atomic():
+        # Lock rows to prevent concurrent void/double refund.
+        payment = Payment.objects.select_for_update().get(pk=payment_pk)
+        tx = Transaction.objects.select_for_update().get(pk=tx.pk)
+
         if payment.status == Payment.Status.PENDING:
             payment.status = Payment.Status.FAILED
             payment.save(update_fields=['status', 'updated_at'])
@@ -99,20 +112,50 @@ def void_payment(request, payment_pk):
         elif payment.status == Payment.Status.CONFIRMED:
             payment.status = Payment.Status.REFUNDED
             payment.save(update_fields=['status', 'updated_at'])
-            # Recompute transaction payment status.
-            confirmed_total = Payment.objects.filter(
-                transaction=tx, status=Payment.Status.CONFIRMED
-            ).aggregate(total=Sum('amount'))['total'] or 0
-            if confirmed_total <= 0:
-                tx.payment_status = Transaction.PaymentStatus.UNPAID
-                tx.status = Transaction.Status.PENDING
-            elif confirmed_total < tx.grand_total:
-                tx.payment_status = Transaction.PaymentStatus.PARTIALLY_PAID
-                tx.status = Transaction.Status.PENDING
+
+            # Kembalikan stok jika transaksi sudah menyelesaikan dan stok telah dipotong.
+            if tx.status == Transaction.Status.COMPLETED and tx.stock_deducted:
+                items = tx.items.select_related('product_variant').all()
+                variant_ids = [i.product_variant_id for i in items]
+                locked = {v.pk: v for v in ProductVariant.objects.select_for_update().filter(pk__in=variant_ids)}
+                for item in items:
+                    variant = locked.get(item.product_variant_id)
+                    if variant is None:
+                        continue
+                    previous = variant.stock_quantity
+                    new_stock = previous + item.quantity
+                    variant.stock_quantity = new_stock
+                    variant.save(update_fields=['stock_quantity', 'updated_at'])
+                    StockMovement.objects.create(
+                        content_type=ContentType.objects.get_for_model(ProductVariant),
+                        object_id=variant.pk,
+                        movement_type=StockMovement.MovementType.RETURN,
+                        quantity=item.quantity,
+                        previous_stock=previous,
+                        new_stock=new_stock,
+                        reference=tx.transaction_number,
+                        user=request.user,
+                        notes='Return for refunded sale {}'.format(tx.transaction_number),
+                    )
+                tx.stock_deducted = False
+                tx.status = Transaction.Status.REFUNDED
+                tx.payment_status = Transaction.PaymentStatus.REFUNDED
+                tx.save(update_fields=['stock_deducted', 'status', 'payment_status', 'updated_at'])
             else:
-                tx.payment_status = Transaction.PaymentStatus.PAID
-                tx.status = Transaction.Status.COMPLETED
-            tx.save(update_fields=['payment_status', 'status', 'updated_at'])
+                # Recompute transaction payment status.
+                confirmed_total = Payment.objects.filter(
+                    transaction=tx, status=Payment.Status.CONFIRMED
+                ).aggregate(total=Sum('amount'))['total'] or 0
+                if confirmed_total <= 0:
+                    tx.payment_status = Transaction.PaymentStatus.UNPAID
+                    tx.status = Transaction.Status.PENDING
+                elif confirmed_total < tx.grand_total:
+                    tx.payment_status = Transaction.PaymentStatus.PARTIALLY_PAID
+                    tx.status = Transaction.Status.PENDING
+                else:
+                    tx.payment_status = Transaction.PaymentStatus.PAID
+                    tx.status = Transaction.Status.COMPLETED
+                tx.save(update_fields=['payment_status', 'status', 'updated_at'])
             messages.success(request, 'Pembayaran dikembalikan (refund).')
         else:
             return JsonResponse({'error': 'Tidak dapat membatalkan pembayaran ini.'}, status=400)

@@ -98,7 +98,10 @@
               <td>{{ p.confirmed_by.username|default:'-' }}</td>
               <td class="text-end">
                 <a href="{% url 'payments:payment_detail' payment_pk=p.pk %}" class="btn btn-sm btn-charcoal"><i data-lucide="eye"></i></a>
-                {% if p.status == 'PENDING' or p.status == 'CONFIRMED' %}
+                {% if p.status == 'PENDING' %}
+                  <button class="btn btn-sm btn-charcoal" onclick="confirmPayment({{ p.pk }})"><i data-lucide="check"></i></button>
+                  <button class="btn btn-sm" style="color:#c62828;border:1px solid #c62828;" onclick="voidPayment({{ p.pk }})"><i data-lucide="x-circle"></i></button>
+                {% elif p.status == 'CONFIRMED' %}
                   <button class="btn btn-sm" style="color:#c62828;border:1px solid #c62828;" onclick="voidPayment({{ p.pk }})"><i data-lucide="x-circle"></i></button>
                 {% endif %}
               </td>
@@ -128,7 +131,7 @@
       <h3>Actions</h3>
       <div class="d-grid gap-2">
         {% if transaction.status == 'PENDING' %}
-          <button class="btn" style="background:#c62828;color:#fff;border:none;" data-confirm="Cancel this transaction?"><i data-lucide="x-circle"></i> Cancel Transaction</button>
+          <button class="btn btn-cancel-tx" style="background:#c62828;color:#fff;border:none;" data-tx="{{ transaction.pk }}"><i data-lucide="x-circle"></i> Cancel Transaction</button>
         {% endif %}
         <a href="{% url 'sales:invoice_pdf' pk=transaction.pk %}" class="btn btn-outline-gold"><i data-lucide="printer"></i> Print Invoice</a>
       </div>
@@ -212,6 +215,49 @@ document.addEventListener('DOMContentLoaded', function(){
       }
     });
   });
+
+  window.confirmPayment = function(paymentId){
+    if(!confirm('Konfirmasi pembayaran ini? Transaksi akan ditandai selesai jika total mencukupi.')) return;
+    fetch('/payments/confirm/' + paymentId + '/', {
+      method: 'POST',
+      headers: {'X-CSRFToken': getCookie('csrftoken')},
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if(data.ok){ location.reload(); }
+      else { alert('Gagal: ' + data.error); }
+    });
+  };
+
+  window.voidPayment = function(paymentId){
+    if(!confirm('Batalkan atau refund pembayaran ini?')) return;
+    fetch('/payments/void/' + paymentId + '/', {
+      method: 'POST',
+      headers: {'X-CSRFToken': getCookie('csrftoken')},
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if(data.ok){ location.reload(); }
+      else { alert('Gagal: ' + data.error); }
+    });
+  };
+
+  document.querySelectorAll('.btn-cancel-tx').forEach(function(el){
+    el.addEventListener('click', function(){
+      if(!confirm('Batalkan transaksi ini? Stok yang sudah dikurangi akan dikembalikan.')) return;
+      var txId = el.getAttribute('data-tx');
+      fetch('/sales/' + txId + '/cancel/', {
+        method: 'POST',
+        headers: {'X-CSRFToken': getCookie('csrftoken')},
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if(data.ok){ location.reload(); }
+        else { alert('Gagal: ' + data.error); }
+      });
+    });
+  });
+
   function getCookie(name){
     var v = document.cookie.match('(^|; )' + name + '=([^;]*)');
     return v ? decodeURIComponent(v[2]) : null;

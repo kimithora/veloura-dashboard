@@ -82,6 +82,12 @@ class DesignUpdateView(RoleRequiredMixin, UpdateView):
     template_name = 'catalog/form.html'
     success_url = reverse_lazy('designs:design_list')
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if self.request.user.has_role('DESIGNER'):
+            qs = qs.filter(designer=self.request.user)
+        return qs
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx.update({
@@ -112,6 +118,9 @@ def update_design_status(request, pk):
     design = get_object_or_404(Design, pk=pk)
     if not request.user.has_role('ADMIN') and not request.user.has_role('DESIGNER'):
         return JsonResponse({'error': 'Unauthorized'}, status=403)
+    # Designer can only update designs assigned to them.
+    if request.user.has_role('DESIGNER') and design.designer_id != request.user.pk:
+        return JsonResponse({'error': 'You can only update designs assigned to you.'}, status=403)
     new_status = request.POST.get('status')
     notes = request.POST.get('notes', '')
     if new_status not in dict(Design.Status.choices):
@@ -130,11 +139,18 @@ def update_design_status(request, pk):
                     order=order, status=order.status, changed_by=request.user,
                     notes='Design {} approved'.format(design.design_id),
                 )
-        # Create a version snapshot
+        # Create a version snapshot with an incremented version number to
+        # avoid IntegrityError on unique_together (design, version_number).
+        last_version = DesignVersion.objects.filter(design=design).order_by('-version_number').first()
+        next_version = (last_version.version_number + 1) if last_version else (design.version or 1)
         DesignVersion.objects.create(
-            design=design, version_number=design.version,
+            design=design, version_number=next_version,
             sketch=design.sketch, notes=notes or 'Version snapshot',
             created_by=request.user,
         )
+        # Keep design.version in sync with the latest snapshot.
+        if not design.version or design.version < next_version:
+            design.version = next_version
+            design.save(update_fields=['version', 'updated_at'])
     messages.success(request, 'Design status updated to {}.'.format(design.get_status_display()))
     return JsonResponse({'ok': True, 'new_status': design.get_status_display()})

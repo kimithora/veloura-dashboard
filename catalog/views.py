@@ -429,8 +429,26 @@ class ProductVariantUpdateView(RoleRequiredMixin, UpdateView):
         return ctx
 
     def form_valid(self, form):
-        messages.success(self.request, 'Variant updated successfully.')
-        return super().form_valid(form)
+        variant = self.get_object()
+        previous_stock = variant.stock_quantity
+        response = super().form_valid(form)
+        new_stock = variant.stock_quantity
+        if new_stock != previous_stock:
+            from inventory.models import StockMovement
+            from django.contrib.contenttypes.models import ContentType
+            StockMovement.objects.create(
+                content_type=ContentType.objects.get_for_model(ProductVariant),
+                object_id=variant.pk,
+                movement_type=StockMovement.MovementType.ADJUSTMENT,
+                quantity=abs(new_stock - previous_stock),
+                previous_stock=previous_stock,
+                new_stock=new_stock,
+                reference='VARIANT-EDIT-{}'.format(variant.pk),
+                user=self.request.user,
+                notes='Manual stock adjustment via variant edit.',
+            )
+        messages.success(self.request, 'Variant updated successfully. Stock change recorded in ledger.')
+        return response
 
 
 class ProductVariantDeleteView(RoleRequiredMixin, DeleteView):
@@ -624,7 +642,7 @@ def create_custom_barcode(request, variant_pk):
                 variant.save(update_fields=['barcode', 'updated_at'])
 
                 # 2. Buat record Barcode
-                Barcode.objects.create(
+                barcode_obj = Barcode.objects.create(
                     product_variant=variant,
                     barcode_value=barcode_value,
                     format=Barcode.Format.CODE_128,
@@ -655,8 +673,10 @@ def create_custom_barcode(request, variant_pk):
                     barcode_value, quantity, new_stock
                 )
             )
-            # Redirect ke product detail; tombol PNG/PDF sudah muncul untuk variant ini
-            return redirect('catalog:product_detail', pk=variant.product.pk)
+            # Generate dan unduh label sesuai format yang dipilih (PNG atau PDF).
+            if label_format == 'pdf':
+                return redirect('catalog:barcode_label_pdf', barcode_pk=barcode_obj.pk)
+            return redirect('catalog:barcode_label_png', barcode_pk=barcode_obj.pk)
     else:
         form = CustomBarcodeForm()
 

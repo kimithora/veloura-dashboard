@@ -1,0 +1,216 @@
+{% extends 'base.html' %}
+
+{% block title %}Pembayaran — {{ transaction.transaction_number }} — VELOURA{% endblock %}
+
+{% block page_title %}Pembayaran Transaksi{% endblock %}
+{% block page_subtitle %}{{ transaction.transaction_number }}{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-md-8">
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title"><i data-lucide="receipt"></i> Detail Transaksi</h2>
+      </div>
+      <table class="table table-borderless">
+        <tr><th style="width:35%;">Transaction #</th><td>{{ transaction.transaction_number }}</td></tr>
+        <tr><th>Date</th><td>{{ transaction.transaction_date|date:"d M Y H:i" }}</td></tr>
+        <tr><th>Customer</th><td>{{ transaction.customer.full_name|default:'Walk-in customer' }}</td></tr>
+        <tr><th>Cashier</th><td>{{ transaction.cashier.username }}</td></tr>
+        <tr><th>Status</th><td><span class="badge badge-status {% if transaction.status == 'COMPLETED' %}badge-status-completed{% elif transaction.status == 'CANCELLED' %}badge-status-rejected{% else %}badge-status-pending{% endif %}">{{ transaction.get_status_display }}</span></td></tr>
+        <tr><th>Payment Status</th><td><span class="badge badge-status {% if transaction.payment_status == 'PAID' %}badge-status-approved{% elif transaction.payment_status == 'PARTIALLY_PAID' %}badge-status-pending{% else %}badge-status-draft{% endif %}">{{ transaction.get_payment_status_display }}</span></td></tr>
+        <tr><th>Grand Total</th><td class="text-end"><strong>{{ VELOURA_CURRENCY_SYMBOL }} {{ transaction.grand_total }}</strong></td></tr>
+        <tr><th>Sudah Dibayar (terkonfirmasi)</th><td class="text-end">{{ VELOURA_CURRENCY_SYMBOL }} {{ transaction.paid_amount|floatformat:0 }}</td></tr>
+        <tr><th>Sisa Tagihan</th><td class="text-end"><strong>{{ VELOURA_CURRENCY_SYMBOL }} {{ transaction.remaining_balance|floatformat:0 }}</strong></td></tr>
+      </table>
+    </div>
+
+    <div class="section mt-4">
+      <h3>Daftar Pembayaran</h3>
+      {% if payments %}
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Tanggal</th><th>Jumlah</th><th>Tipe</th><th>Metode</th><th>Status</th><th>Dikonfirmasi Oleh</th><th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in payments %}
+            <tr>
+              <td>{{ p.created_at|date:"d M Y H:i" }}</td>
+              <td class="text-end">{{ VELOURA_CURRENCY_SYMBOL }} {{ p.amount|floatformat:0 }}</td>
+              <td><span class="badge badge-soft">{{ p.get_payment_type_display }}</span></td>
+              <td>{{ p.get_method_display }}</td>
+              <td><span class="badge {% if p.status == 'CONFIRMED' %}bg-success text-white{% elif p.status == 'PENDING' %}bg-warning text-dark{% elif p.status == 'REFUNDED' %}bg-danger text-white{% else %}bg-secondary text-white{% endif %}">{{ p.get_status_display }}</span></td>
+              <td>{{ p.confirmed_by.username|default:'-' }}</td>
+              <td class="text-end">
+                <a href="{% url 'payments:payment_detail' payment_pk=p.pk %}" class="btn btn-sm btn-charcoal"><i data-lucide="eye"></i></a>
+                {% if p.status == 'PENDING' or p.status == 'CONFIRMED' %}
+                  <button class="btn btn-sm" style="color:#c62828;border:1px solid #c62828;" onclick="voidPayment({{ p.pk }})"><i data-lucide="x-circle"></i></button>
+                {% endif %}
+                {% if p.status == 'PENDING' %}
+                  <button class="btn btn-sm btn-charcoal" onclick="confirmPayment({{ p.pk }})"><i data-lucide="check"></i></button>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty-state">
+        <i data-lucide="credit-card"></i>
+        <h3>Belum ada pembayaran</h3>
+        <p>Pembayaran dapat dicatat melalui halaman detail transaksi.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="section">
+      <h3>Aksi Pembayaran</h3>
+      {% if transaction.payment_status != 'PAID' %}
+      <div class="d-grid gap-2">
+        <button class="btn btn-gold" data-bs-toggle="modal" data-bs-target="#paymentModal"><i data-lucide="credit-card"></i> Catat Pembayaran Baru</button>
+      </div>
+      {% endif %}
+
+      {% if transaction.payments.filter(status='PENDING').exists %}
+      <div class="alert alert-gold mt-3">
+        Ada pembayaran yang menunggu konfirmasi. Konfirmasi pembayaran untuk menyelesaikan transaksi.
+      </div>
+      {% endif %}
+
+      {% if transaction.status == 'COMPLETED' and not transaction.stock_deducted %}
+      <div class="alert alert-info mt-3">
+        Stok akan dikurangi setelah pembayaran dikonfirmasi dan transaksi selesai.
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="section mt-4">
+      <h3>Aksi Lainnya</h3>
+      <div class="d-grid gap-2">
+        {% if transaction.status == 'PENDING' %}
+          <button class="btn" style="background:#c62828;color:#fff;border:none;" data-confirm="Cancel this transaction?"><i data-lucide="x-circle"></i> Cancel Transaction</button>
+        {% endif %}
+        <a href="{% url 'sales:invoice_pdf' pk=transaction.pk %}" class="btn btn-outline-gold"><i data-lucide="printer"></i> Print Invoice</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Payment modal -->
+<div class="modal fade" id="paymentModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Catat Pembayaran Baru</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="paymentForm">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label">Jumlah</label>
+            <input type="number" name="amount" class="form-control" step="0.01" value="{{ transaction.remaining_balance|floatformat:0 }}" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Tipe Pembayaran</label>
+            <select name="payment_type" class="form-select">
+              <option value="FULL">Penuh (Full Payment)</option>
+              <option value="DP">Down Payment (DP)</option>
+              <option value="INSTALLMENT">Cicilan (Installment)</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Metode</label>
+            <select name="method" class="form-select">
+              <option value="CASH">Cash</option>
+              <option value="BANK_TRANSFER">Bank Transfer</option>
+              <option value="QRIS">QRIS</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Jatuh Tempo (opsional)</label>
+            <input type="date" name="due_date" class="form-control">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Bukti pembayaran (opsional)</label>
+            <input type="file" name="payment_proof" class="form-control">
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-charcoal" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-gold" id="submitPaymentBtn">Simpan Pembayaran</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+
+  var submitPaymentBtn = document.getElementById('submitPaymentBtn');
+  var txId = {{ transaction.pk }};
+
+  submitPaymentBtn.addEventListener('click', function(){
+    var form = document.getElementById('paymentForm');
+    var fd = new FormData(form);
+    fetch('/payments/record/' + txId + '/', {
+      method: 'POST',
+      headers: {'X-CSRFToken': getCookie('csrftoken')},
+      body: fd,
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if (data.ok){
+        var modal = bootstrap.Modal.getInstance(document.getElementById('paymentModal'));
+        modal.hide();
+        location.reload();
+      } else {
+        alert('Gagal mencatat pembayaran: ' + data.error);
+      }
+    });
+  });
+
+  window.confirmPayment = function(paymentId){
+    if(!confirm('Konfirmasi pembayaran ini? Transaksi akan ditandai selesai jika total mencukupi.')) return;
+    fetch('/payments/confirm/' + paymentId + '/', {
+      method: 'POST',
+      headers: {'X-CSRFToken': getCookie('csrftoken')},
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if(data.ok){ location.reload(); }
+      else { alert('Gagal: ' + data.error); }
+    });
+  };
+
+  window.voidPayment = function(paymentId){
+    if(!confirm('Batalkan atau refund pembayaran ini?')) return;
+    fetch('/payments/void/' + paymentId + '/', {
+      method: 'POST',
+      headers: {'X-CSRFToken': getCookie('csrftoken')},
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if(data.ok){ location.reload(); }
+      else { alert('Gagal: ' + data.error); }
+    });
+  };
+
+  function getCookie(name){
+    var v = document.cookie.match('(^|; )' + name + '=([^;]*)');
+    return v ? decodeURIComponent(v[2]) : null;
+  }
+});
+</script>
+{% endblock %}

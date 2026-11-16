@@ -1,0 +1,305 @@
+%%{init: {"theme": "forest", "themeVariables": {"fontSize": "16px", "fontFamily": "Arial"}}}%%
+erDiagram
+
+    ROLE ||--o{ USER : "memiliki (role)"
+    USER ||--o{ CUSTOMER : "profil pelanggan (opsional)"
+    USER ||--o{ ORDER : "kasir pembuat / desainer ditunjuk"
+    USER ||--o{ ORDER_STATUS_HISTORY : "mengubah status"
+    USER ||--o{ PAYMENT : "mengonfirmasi pembayaran"
+    USER ||--o{ PRODUCTION : "desainer produksi"
+    USER ||--o{ MATERIAL_REQUEST : "pengaju / penyetujui bahan"
+    USER ||--o{ MATERIAL_USAGE : "mencatat pemakaian bahan"
+    USER ||--o{ QUALITY_CONTROL : "melakukan pemeriksaan QC"
+    USER ||--o{ DESIGN : "membuat desain"
+    USER ||--o{ DESIGN_VERSION : "membuat revisi desain"
+    USER ||--o{ STOCK_MOVEMENT : "mencatat gerakan stok"
+    USER ||--o{ TRANSACTION : "melayani transaksi (kasir)"
+
+    ROLE {
+        int id PK
+        string code UK
+        string name
+        string description
+    }
+
+    USER {
+        int id PK
+        string username UK
+        string email
+        string phone
+        string address
+        int role_id FK
+    }
+
+    CUSTOMER ||--o{ ORDER : "memesan"
+    CUSTOMER ||--o{ MEASUREMENT : "data ukuran badan"
+    CUSTOMER ||--o{ FITTING : "sesi fitting"
+    CUSTOMER ||--o{ TRANSACTION : "bertransaksi"
+
+    CUSTOMER {
+        int id PK
+        string customer_id UK
+        string full_name
+        string phone
+        string email
+        string address
+        string source
+        decimal total_spending
+        int user_id FK
+    }
+
+    MEASUREMENT {
+        int id PK
+        string measurement_id UK
+        date measurement_date
+        decimal chest_circumference
+        decimal waist_circumference
+        decimal hip_circumference
+        int customer_id FK
+        int order_id FK
+    }
+
+    ORDER ||--o{ ORDER_STATUS_HISTORY : "riwayat status"
+    ORDER ||--o{ PRODUCTION : "rekam produksi"
+    ORDER ||--o{ DESIGN : "desain"
+    ORDER ||--o{ FITTING : "fitting"
+    ORDER ||--o{ QUALITY_CONTROL : "QC"
+    ORDER ||--o{ MEASUREMENT : "terkait ukuran (opsional)"
+
+    ORDER {
+        int id PK
+        string order_number UK
+        datetime order_date
+        date required_date
+        string status
+        text description
+        decimal total_amount
+        decimal dp_amount
+        int customer_id FK
+        int cashier_id FK
+        int designer_id FK
+    }
+
+    ORDER_STATUS_HISTORY {
+        int id PK
+        string status
+        datetime changed_at
+        text notes
+        int order_id FK
+        int changed_by_id FK
+    }
+
+    CATEGORY ||--o{ PRODUCT : "mengelompokkan"
+    BRAND ||--o{ PRODUCT : "merek (opsional)"
+    SUPPLIER ||--o{ PRODUCT : "mengasokkan produk (opsional)"
+    PRODUCT ||--o{ PRODUCT_VARIANT : "varian ukuran/warna"
+    PRODUCT_VARIANT ||--o{ BARCODE : "kode batang"
+    PRODUCT_VARIANT ||--o{ TRANSACTION_ITEM : "terjual dalam transaksi"
+    BARCODE }o--|| BARCODE : "diregenerate dari (self-ref)"
+
+    CATEGORY {
+        int id PK
+        string name UK
+        string slug
+        string description
+    }
+
+    BRAND {
+        int id PK
+        string name UK
+        string slug
+        string description
+    }
+
+    PRODUCT {
+        int id PK
+        string sku UK
+        string name
+        string source
+        string status
+        decimal selling_price
+        decimal purchase_price
+        int min_stock
+        int category_id FK
+        int brand_id FK
+        int supplier_id FK
+    }
+
+    PRODUCT_VARIANT {
+        int id PK
+        string sku UK
+        string barcode
+        string size
+        string color
+        int stock_quantity
+        int product_id FK
+    }
+
+    BARCODE {
+        int id PK
+        string barcode_value UK
+        string format
+        boolean is_active
+        int product_variant_id FK
+        int regenerated_from_id FK
+    }
+
+    SUPPLIER ||--o{ MATERIAL : "mengasokkan bahan (opsional)"
+
+    SUPPLIER {
+        int id PK
+        string supplier_id UK
+        string name
+        string contact_person
+        string phone
+        string email
+        string address
+        string supplier_type
+    }
+
+    TRANSACTION ||--o{ PAYMENT : "pembayaran"
+    TRANSACTION ||--o{ TRANSACTION_ITEM : "item transaksi"
+
+    TRANSACTION {
+        int id PK
+        string transaction_number UK
+        datetime transaction_date
+        string status
+        string payment_status
+        decimal subtotal
+        decimal discount_amount
+        decimal grand_total
+        int customer_id FK
+        int cashier_id FK
+    }
+
+    TRANSACTION_ITEM {
+        int id PK
+        int quantity
+        decimal unit_price
+        decimal discount
+        decimal total
+        int transaction_id FK
+        int product_variant_id FK
+    }
+
+    PAYMENT {
+        int id PK
+        string payment_type
+        string method
+        string status
+        decimal amount
+        date due_date
+        datetime confirmed_at
+        int transaction_id FK
+        int confirmed_by_id FK
+    }
+
+    MATERIAL ||--o{ MATERIAL_REQUEST : "permintaan bahan"
+    MATERIAL ||--o{ MATERIAL_USAGE : "pemakaian bahan"
+    DJANGO_CONTENT_TYPE ||--o{ STOCK_MOVEMENT : "jenis objek (polimorfik)"
+    PRODUCT_VARIANT }o--o{ STOCK_MOVEMENT : "stok barang jadi (via ContentType)"
+    MATERIAL }o--o{ STOCK_MOVEMENT : "stok bahan baku (via ContentType)"
+
+    MATERIAL {
+        int id PK
+        string material_id UK
+        string name
+        string category
+        string unit
+        decimal stock_quantity
+        decimal min_stock
+        decimal purchase_price
+        int supplier_id FK
+    }
+
+    STOCK_MOVEMENT {
+        int id PK
+        string movement_type
+        decimal quantity
+        decimal previous_stock
+        decimal new_stock
+        int content_type_id FK
+        int object_id
+        int user_id FK
+    }
+
+    PRODUCTION ||--o{ MATERIAL_REQUEST : "permintaan bahan"
+    PRODUCTION ||--o{ MATERIAL_USAGE : "pemakaian bahan"
+    MATERIAL_REQUEST ||--o{ MATERIAL_USAGE : "realisasi pemakaian"
+
+    PRODUCTION {
+        int id PK
+        string production_id UK
+        date start_date
+        date estimated_completion
+        date actual_completion
+        int progress
+        string status
+        int order_id FK
+        int designer_id FK
+    }
+
+    MATERIAL_REQUEST {
+        int id PK
+        string request_id UK
+        string status
+        decimal quantity
+        int production_id FK
+        int material_id FK
+        int requested_by_id FK
+        int approved_by_id FK
+    }
+
+    MATERIAL_USAGE {
+        int id PK
+        string usage_id UK
+        decimal quantity_used
+        datetime used_at
+        int production_id FK
+        int material_request_id FK
+        int material_id FK
+        int used_by_id FK
+    }
+
+    FITTING {
+        int id PK
+        string fitting_id UK
+        datetime scheduled_date
+        string status
+        int order_id FK
+        int customer_id FK
+    }
+
+    QUALITY_CONTROL {
+        int id PK
+        string qc_id UK
+        string status
+        datetime qc_date
+        int order_id FK
+        int qc_by_id FK
+    }
+
+    DESIGN {
+        int id PK
+        string design_id UK
+        string name
+        string category
+        string status
+        int version
+        int order_id FK
+        int designer_id FK
+    }
+
+    DESIGN_VERSION {
+        int id PK
+        int version_number
+        int design_id FK
+        int created_by_id FK
+    }
+
+    DJANGO_CONTENT_TYPE {
+        int id PK
+        string app_label
+        string model
+    }

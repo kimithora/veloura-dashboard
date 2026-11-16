@@ -83,6 +83,12 @@ class OrderUpdateView(RoleRequiredMixin, UpdateView):
     template_name = 'catalog/form.html'
     success_url = reverse_lazy('orders:order_list')
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if self.request.user.has_role('DESIGNER'):
+            qs = qs.filter(designer=self.request.user)
+        return qs
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx.update({
@@ -114,6 +120,9 @@ def update_order_status(request, pk):
     order = get_object_or_404(Order, pk=pk)
     if not request.user.has_role('ADMIN') and not request.user.has_role('CASHIER') and not request.user.has_role('DESIGNER'):
         return JsonResponse({'error': 'Unauthorized'}, status=403)
+    # Designer can only update orders assigned to them.
+    if request.user.has_role('DESIGNER') and order.designer_id != request.user.pk:
+        return JsonResponse({'error': 'You can only update orders assigned to you.'}, status=403)
     new_status = request.POST.get('status')
     notes = request.POST.get('notes', '')
     if new_status not in dict(Order.Status.choices):

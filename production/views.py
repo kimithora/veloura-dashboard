@@ -98,6 +98,9 @@ def production_update(request, pk):
     production = get_object_or_404(Production, pk=pk)
     if not request.user.has_role('ADMIN') and not request.user.has_role('DESIGNER'):
         return JsonResponse({'error': 'Unauthorized'}, status=403)
+    # Designer can only update productions assigned to them.
+    if request.user.has_role('DESIGNER') and production.designer_id != request.user.pk:
+        return JsonResponse({'error': 'You can only update productions assigned to you.'}, status=403)
     progress = request.POST.get('progress')
     status = request.POST.get('status')
     notes = request.POST.get('notes', '')
@@ -190,6 +193,9 @@ def material_request_action(request, pk):
     req = get_object_or_404(MaterialRequest, pk=pk)
     if not request.user.has_role('ADMIN') and not request.user.has_role('DESIGNER'):
         return JsonResponse({'error': 'Unauthorized'}, status=403)
+    # Designer can only act on material requests for their own productions.
+    if request.user.has_role('DESIGNER') and req.production.designer_id != request.user.pk:
+        return JsonResponse({'error': 'You can only act on requests for your own productions.'}, status=403)
     form = MaterialRequestActionForm(request.POST)
     if not form.is_valid():
         return JsonResponse({'error': 'Invalid action'}, status=400)
@@ -201,10 +207,35 @@ def material_request_action(request, pk):
             req.save(update_fields=['status', 'approved_by', 'updated_at'])
             messages.success(request, 'Material request approved.')
         elif action == 'fulfill':
+            # Kurangi stok material dan catat ledger saat permintaan terpenuhi.
+            material = req.material
+            with db_transaction.atomic():
+                material = Material.objects.select_for_update().get(pk=material.pk)
+                previous_stock = material.stock_quantity
+                new_stock = previous_stock - req.quantity
+                if new_stock < 0:
+                    return JsonResponse({
+                        'error': 'Insufficient material stock for {}: have {}, need {}'.format(
+                            material.name, previous_stock, req.quantity
+                        )
+                    }, status=400)
+                material.stock_quantity = new_stock
+                material.save(update_fields=['stock_quantity', 'updated_at'])
+                StockMovement.objects.create(
+                    content_type=ContentType.objects.get_for_model(Material),
+                    object_id=material.pk,
+                    movement_type=StockMovement.MovementType.PRODUCTION_USAGE,
+                    quantity=req.quantity,
+                    previous_stock=previous_stock,
+                    new_stock=new_stock,
+                    reference=req.request_id,
+                    user=request.user,
+                    notes='Material request fulfilled: {}'.format(req.request_id),
+                )
             req.status = MaterialRequest.Status.FULFILLED
             req.approved_by = request.user
             req.save(update_fields=['status', 'approved_by', 'updated_at'])
-            messages.success(request, 'Material request fulfilled.')
+            messages.success(request, 'Material request fulfilled. Stok dikurangi dan dicatat di ledger.')
         elif action == 'reject':
             req.status = MaterialRequest.Status.REJECTED
             req.approved_by = request.user
@@ -233,7 +264,8 @@ class MaterialUsageCreateView(RoleRequiredMixin, CreateView):
         form.instance.used_by = self.request.user
         with db_transaction.atomic():
             usage = form.save(commit=False)
-            material = usage.material
+            # Lock material row to prevent concurrent stock updates (race condition).
+            material = Material.objects.select_for_update().get(pk=usage.material.pk)
             previous_stock = material.stock_quantity
             new_stock = previous_stock - usage.quantity_used
             if new_stock < 0:
@@ -323,6 +355,9 @@ class QualityControlCreateView(RoleRequiredMixin, CreateView):
     def form_valid(self, form):
         form.instance.qc_by = self.request.user
         if form.instance.status == QualityControl.Status.PASSED:
+            if not form.instance.all_checks_passed:
+                messages.error(self.request, 'QC cannot be PASSED until all checklist items are checked.')
+                return self.form_invalid(form)
             form.instance.qc_date = timezone.now()
         messages.success(self.request, 'QC check recorded.')
         return super().form_valid(form)
