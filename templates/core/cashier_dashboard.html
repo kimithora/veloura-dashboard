@@ -117,16 +117,32 @@
     </div>
     <div class="col-md-4">
       <div class="empty-state" style="padding:2rem;background:var(--veloura-white);border:1px solid var(--veloura-border);border-radius:16px;">
+        <i data-lucide="scissors"></i>
+        <h3>Custom Order</h3>
+        <p class="text-muted small">Buat pesanan custom couture baru untuk pelanggan.</p>
+        <a href="{% url 'orders:order_add' %}" class="btn btn-gold mt-3">Add Order</a>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="empty-state" style="padding:2rem;background:var(--veloura-white);border:1px solid var(--veloura-border);border-radius:16px;">
         <i data-lucide="printer"></i>
         <h3>Print Labels</h3>
         <p class="text-muted small">PNG/PDF labels from product variants.</p>
         <a href="{% url 'catalog:barcode_list' %}" class="btn btn-gold mt-3">Manage Barcodes</a>
       </div>
     </div>
+    <div class="col-md-4">
+      <div class="empty-state" style="padding:2rem;background:var(--veloura-white);border:1px solid var(--veloura-border);border-radius:16px;">
+        <i data-lucide="user-plus"></i>
+        <h3>Add Member</h3>
+        <p class="text-muted small">Daftarkan pelanggan baru sebelum membuat pesanan custom.</p>
+        <a href="{% url 'customers:customer_add' %}" class="btn btn-gold mt-3">Register Member</a>
+      </div>
+    </div>
   </div>
 </div>
 
-<div class="section">
+<div class="section mt-4">
   <div class="section-header">
     <h2 class="section-title"><i data-lucide="user"></i>Current Cashier</h2>
   </div>

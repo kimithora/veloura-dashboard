@@ -1,5 +1,6 @@
 from django import forms
 from .models import Order
+from accounts.models import User
 
 
 class OrderForm(forms.ModelForm):
@@ -19,3 +20,9 @@ class OrderForm(forms.ModelForm):
             'dp_amount': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Only designer users can be assigned as order designer.
+        self.fields['designer'].queryset = User.objects.filter(role__code='DESIGNER')
+        self.fields['designer'].empty_label = 'Select designer (optional)'

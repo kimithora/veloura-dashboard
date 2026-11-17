@@ -1,3 +1,4 @@
+from django import forms
 from django.views.generic import ListView, CreateView, UpdateView, DetailView
 from django.urls import reverse_lazy, reverse
 from django.contrib import messages
@@ -61,7 +62,18 @@ class ProductionCreateView(RoleRequiredMixin, CreateView):
     model = Production
     form_class = ProductionForm
     template_name = 'catalog/form.html'
-    success_url = reverse_lazy('production:production_list')
+
+    def dispatch(self, request, *args, **kwargs):
+        order_pk = request.GET.get('order')
+        self.preselect_order = None
+        if order_pk:
+            self.preselect_order = get_object_or_404(Order, pk=order_pk)
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_success_url(self):
+        if self.preselect_order:
+            return reverse('orders:order_detail', kwargs={'pk': self.preselect_order.pk})
+        return reverse_lazy('production:production_list')
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -69,11 +81,24 @@ class ProductionCreateView(RoleRequiredMixin, CreateView):
             'title': 'Add Production',
             'subtitle': 'Create a new production record',
             'icon': 'layers',
-            'cancel_url': reverse_lazy('production:production_list'),
+            'cancel_url': self.get_success_url(),
+            'preselect_order': self.preselect_order,
         })
         return ctx
 
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        if self.preselect_order:
+            form.fields['order'].initial = self.preselect_order
+            form.fields['order'].widget = forms.HiddenInput()
+            form.fields['designer'].initial = self.request.user
+            form.fields['designer'].widget = forms.HiddenInput()
+        return form
+
     def form_valid(self, form):
+        if self.preselect_order:
+            form.instance.order = self.preselect_order
+            form.instance.designer = self.request.user
         messages.success(self.request, 'Production created successfully.')
         return super().form_valid(form)
 
@@ -340,7 +365,18 @@ class QualityControlCreateView(RoleRequiredMixin, CreateView):
     model = QualityControl
     form_class = QualityControlForm
     template_name = 'catalog/form.html'
-    success_url = reverse_lazy('production:qc_list')
+
+    def dispatch(self, request, *args, **kwargs):
+        order_pk = request.GET.get('order')
+        self.preselect_order = None
+        if order_pk:
+            self.preselect_order = get_object_or_404(Order, pk=order_pk)
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_success_url(self):
+        if self.preselect_order:
+            return reverse('orders:order_detail', kwargs={'pk': self.preselect_order.pk})
+        return reverse_lazy('production:qc_list')
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -348,11 +384,23 @@ class QualityControlCreateView(RoleRequiredMixin, CreateView):
             'title': 'Quality Control',
             'subtitle': 'Perform quality control check',
             'icon': 'check-circle-2',
-            'cancel_url': reverse_lazy('production:qc_list'),
+            'cancel_url': self.get_success_url(),
+            'preselect_order': self.preselect_order,
         })
         return ctx
 
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        if self.preselect_order:
+            form.fields['order'].initial = self.preselect_order
+            form.fields['order'].widget = forms.HiddenInput()
+            form.fields['qc_by'].initial = self.request.user
+            form.fields['qc_by'].widget = forms.HiddenInput()
+        return form
+
     def form_valid(self, form):
+        if self.preselect_order:
+            form.instance.order = self.preselect_order
         form.instance.qc_by = self.request.user
         if form.instance.status == QualityControl.Status.PASSED:
             if not form.instance.all_checks_passed:
@@ -360,4 +408,96 @@ class QualityControlCreateView(RoleRequiredMixin, CreateView):
                 return self.form_invalid(form)
             form.instance.qc_date = timezone.now()
         messages.success(self.request, 'QC check recorded.')
+        return super().form_valid(form)
+
+
+class FittingListView(RoleRequiredMixin, ListView):
+    required_roles = ('ADMIN', 'DESIGNER')
+    model = Fitting
+    template_name = 'catalog/list.html'
+    context_object_name = 'fittings'
+    paginate_by = 20
+
+    def get_queryset(self):
+        qs = Fitting.objects.select_related('order', 'customer').all()
+        if self.request.user.has_role('DESIGNER'):
+            qs = qs.filter(order__designer=self.request.user)
+        q = self.request.GET.get('q')
+        if q:
+            qs = qs.filter(fitting_id__icontains=q)
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        qs = self.get_queryset()
+        ctx.update({
+            'title': 'Fittings',
+            'subtitle': 'Fitting sessions for custom orders',
+            'icon': 'calendar',
+            'object_list': qs,
+            'columns': [
+                {'header': 'Fitting ID', 'field': 'fitting_id'},
+                {'header': 'Order', 'field': 'order.order_number'},
+                {'header': 'Customer', 'field': 'customer.full_name'},
+                {'header': 'Scheduled', 'field': 'scheduled_date'},
+                {'header': 'Status', 'field': 'get_status_display'},
+            ],
+            'create_url': 'production:fitting_add',
+            'create_label': 'Add Fitting',
+            'empty_message': 'No fitting records found.',
+            'query': self.request.GET.get('q', ''),
+        })
+        return ctx
+
+
+class FittingCreateView(RoleRequiredMixin, CreateView):
+    required_roles = ('ADMIN', 'DESIGNER')
+    model = Fitting
+    fields = ['order', 'customer', 'scheduled_date', 'fitting_date', 'results', 'alterations_required', 'documentation', 'status']
+    template_name = 'catalog/form.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        order_pk = request.GET.get('order')
+        self.preselect_order = None
+        if order_pk:
+            self.preselect_order = get_object_or_404(Order, pk=order_pk)
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_success_url(self):
+        if self.preselect_order:
+            return reverse('orders:order_detail', kwargs={'pk': self.preselect_order.pk})
+        return reverse_lazy('production:fitting_list')
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx.update({
+            'title': 'Add Fitting',
+            'subtitle': 'Schedule a fitting session',
+            'icon': 'calendar',
+            'cancel_url': self.get_success_url(),
+            'preselect_order': self.preselect_order,
+        })
+        return ctx
+
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        if self.preselect_order:
+            form.fields['order'].initial = self.preselect_order
+            form.fields['order'].widget = forms.HiddenInput()
+            form.fields['customer'].initial = self.preselect_order.customer
+            form.fields['customer'].widget = forms.HiddenInput()
+        for name in ('order', 'customer', 'status'):
+            if name in form.fields:
+                form.fields[name].widget.attrs['class'] = 'form-select'
+        form.fields['scheduled_date'].widget.attrs.update({'class': 'form-control', 'type': 'datetime-local'})
+        form.fields['fitting_date'].widget.attrs.update({'class': 'form-control', 'type': 'datetime-local'})
+        form.fields['results'].widget.attrs.update({'class': 'form-control', 'rows': 3})
+        form.fields['alterations_required'].widget.attrs.update({'class': 'form-control', 'rows': 3})
+        return form
+
+    def form_valid(self, form):
+        if self.preselect_order:
+            form.instance.order = self.preselect_order
+            form.instance.customer = self.preselect_order.customer
+        messages.success(self.request, 'Fitting scheduled successfully.')
         return super().form_valid(form)

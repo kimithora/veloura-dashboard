@@ -1,6 +1,6 @@
 # Progress VELOURA Dashboard
 
-**Pembaruan:** 16 November 2026  
+**Pembaruan:** 17 November 2026  
 **Status keseluruhan:** fitur dasar dan sebagian modul bisnis sudah tersedia, tetapi alur penjualan/pembayaran belum siap dianggap end-to-end atau teruji.  
 **Catatan:** status fase mengacu pada kode yang diperiksa, bukan rencana awal. Temuan rinci dan urutan debugging ada di [audit.md](./audit.md).
 
@@ -12,8 +12,8 @@
 | 1. Fondasi sistem | Sebagian selesai | Custom user, role, login, dashboard, dan pembatasan akses dasar tersedia. Cakupan test role dan akses tiap route belum ada. |
 | 2. Katalog dan inventori | Sebagian selesai | Model katalog, varian, customer, supplier, material, serta ledger tersedia. Beberapa perubahan stok dapat melewati ledger; validasi dan concurrency perlu dibenahi. |
 | 3. POS dan transaksi | Belum selesai / perlu debugging | Scanner, cart, checkout, dan detail transaksi tersedia. Checkout POS belum membuat pembayaran, validasi cart belum cukup, dan pembatalan transaksi belum tersambung dari UI. |
-| 4. Pembayaran dan invoice | Sebagian selesai | Record pembayaran dan invoice tersedia. Konfirmasi belum tersedia dari UI, refund belum menyelaraskan stok, dan satu halaman pembayaran transaksi gagal karena template hilang. |
-| 5. Custom order, desain, produksi | Sebagian selesai | Model, sebagian route/form/halaman workflow tersedia. Validasi penugasan, snapshot desain, QC, material, dan sinkronisasi status masih perlu diperbaiki. |
+| 4. Pembayaran dan invoice | Sebagian selesai | Record pembayaran, konfirmasi, refund, dan invoice tersedia, termasuk UI konfirmasi dari daftar/detail transaksi. Refund menyelaraskan stok, bahkan pada transaksi multi-pembayaran. Belum ada tes otomatis. |
+| 5. Custom order, desain, produksi | Sebagian selesai | Model, route/form/halaman workflow tersedia, termasuk UI CRUD Measurement dan Fitting yang sebelumnya placeholder. Validasi penugasan, snapshot desain, QC, material, dan sinkronisasi status masih perlu diperbaiki. |
 | 6. Analytics dan fitur pendukung | Belum selesai | Analytics, notifications, documents, measurement, fitting, dan beberapa laporan/UI masih placeholder atau belum tersedia. |
 
 ## Fase 0 — Persiapan proyek
@@ -68,12 +68,10 @@
 ## Fase 4 — Pembayaran dan invoice
 
 ### Sudah tersedia
-- Model dan form pencatatan pembayaran, endpoint konfirmasi/refund, serta invoice PDF.
+- Model dan form pencatatan pembayaran, endpoint konfirmasi/refund, UI konfirmasi/void dari daftar dan detail transaksi, template daftar pembayaran per transaksi, serta invoice PDF.
+- Refund mengembalikan stok dan menyelaraskan status transaksi, termasuk skenario transaksi dengan beberapa pembayaran.
 
 ### Belum selesai
-- Aksi konfirmasi pembayaran belum tersedia dalam UI.
-- Refund belum mengembalikan stok atau menyelaraskan seluruh status transaksi.
-- Template daftar pembayaran per transaksi belum ada.
 - Belum ada test untuk status pembayaran, pembayaran parsial, dan concurrency.
 
 ## Fase 5 — Custom order, desain, dan produksi
@@ -88,13 +86,13 @@
 - QC belum mensyaratkan semua checklist lolos sebelum Passed.
 - Fulfill material request belum memperbarui persediaan.
 - Status produksi/order dan histori perubahan belum selalu sinkron.
-- Beberapa aksi pada halaman detail masih placeholder.
 
 ## Fase 6 — Analytics dan fitur pendukung
 
 ### Status
 - Analytics, notifications, dan documents masih placeholder.
-- Measurement dan fitting belum memiliki UI CRUD.
+- Measurement dan fitting sekarang memiliki UI CRUD lengkap (daftar dan tambah data; nama customer/order ditampilkan via dot-notation filter).
+- AJAX form di halaman detail (produksi, desain, order, pembayaran) sudah punya error handling (.catch) dan loading overlay, tidak lagi stuck saat submit.
 - Statistik dashboard, pencarian global, beberapa tautan profil, dan laporan masih perlu implementasi.
 
 ## Pemeriksaan terakhir

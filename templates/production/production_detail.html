@@ -16,7 +16,7 @@
         <tr><th style="width:35%;">Production ID</th><td>{{ production.production_id }}</td></tr>
         <tr><th>Order</th><td><a href="{% url 'orders:order_detail' pk=production.order.pk %}">{{ production.order.order_number }}</a></td></tr>
         <tr><th>Customer</th><td>{{ production.order.customer.full_name }}</td></tr>
-        <tr><th>Designer</th><td>{{ production.designer.username|default:'Not assigned' }}</td></tr>
+        <tr><th>Designer</th><td>{% if production.designer %}{{ production.designer.username }}{% else %}<span class="text-muted">Not assigned</span>{% endif %}</td></tr>
         <tr><th>Status</th><td>
           <span class="badge badge-status {% if production.status == 'COMPLETED' %}badge-status-completed{% elif production.status == 'DELAYED' %}badge-status-rejected{% else %}badge-status-pending{% endif %}">
             {{ production.get_status_display }}
@@ -89,7 +89,7 @@
       <h3>Record Material Usage</h3>
       <p class="text-muted small">Records actual material consumption and reduces inventory.</p>
       <div class="d-grid gap-2">
-        <a href="#" class="btn btn-outline-gold" data-confirm="Material usage form coming soon."><i data-lucide="activity"></i> Record Usage</a>
+        <a href="{% url 'production:material_usage_add' %}" class="btn btn-outline-gold"><i data-lucide="activity"></i> Record Usage</a>
       </div>
     </div>
 
@@ -110,9 +110,11 @@ document.addEventListener('DOMContentLoaded', function(){
   if (typeof lucide !== 'undefined') lucide.createIcons();
   var form = document.getElementById('progressForm');
   var msg = document.getElementById('progressMsg');
+  var loadingOverlay = document.getElementById('loadingOverlay');
   var productionId = {{ production.pk }};
   form.addEventListener('submit', function(e){
     e.preventDefault();
+    if (loadingOverlay) loadingOverlay.style.display = 'flex';
     var fd = new FormData(form);
     fetch('/production/' + productionId + '/update/', {
       method: 'POST',
@@ -121,12 +123,18 @@ document.addEventListener('DOMContentLoaded', function(){
     })
     .then(function(r){ return r.json(); })
     .then(function(data){
+      if (loadingOverlay) loadingOverlay.style.display = 'none';
       if(data.ok){
         msg.innerHTML = '<div class="alert alert-success">Progress updated.</div>';
         setTimeout(function(){ location.reload(); }, 800);
       } else {
         msg.innerHTML = '<div class="alert alert-danger">' + (data.error || 'Failed') + '</div>';
       }
+    })
+    .catch(function(err){
+      if (loadingOverlay) loadingOverlay.style.display = 'none';
+      msg.innerHTML = '<div class="alert alert-danger">Terjadi kesalahan jaringan. Coba lagi.</div>';
+      console.error(err);
     });
   });
   function getCookie(name){

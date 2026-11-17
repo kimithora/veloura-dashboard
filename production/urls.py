@@ -14,4 +14,6 @@ urlpatterns = [
     path('material-usage/add/', views.MaterialUsageCreateView.as_view(), name='material_usage_add'),
     path('qc/', views.QualityControlListView.as_view(), name='qc_list'),
     path('qc/add/', views.QualityControlCreateView.as_view(), name='qc_add'),
+    path('fittings/', views.FittingListView.as_view(), name='fitting_list'),
+    path('fittings/add/', views.FittingCreateView.as_view(), name='fitting_add'),
 ]

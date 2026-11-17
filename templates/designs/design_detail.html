@@ -17,7 +17,7 @@
         <tr><th>Order</th><td><a href="{% url 'orders:order_detail' pk=design.order.pk %}">{{ design.order.order_number }}</a></td></tr>
         <tr><th>Name</th><td>{{ design.name }}</td></tr>
         <tr><th>Category</th><td>{{ design.get_category_display }}</td></tr>
-        <tr><th>Designer</th><td>{{ design.designer.username|default:'Not assigned' }}</td></tr>
+        <tr><th>Designer</th><td>{% if design.designer %}{{ design.designer.username }}{% else %}<span class="text-muted">Not assigned</span>{% endif %}</td></tr>
         <tr><th>Status</th><td>
           <span class="badge badge-status {% if design.status == 'APPROVED' %}badge-status-completed{% elif design.status == 'REJECTED' %}badge-status-rejected{% else %}badge-status-pending{% endif %}">
             {{ design.get_status_display }}
@@ -105,7 +105,7 @@
     <div class="section mt-4">
       <h3>Actions</h3>
       <div class="d-grid gap-2">
-        <a href="#" class="btn btn-outline-gold" data-confirm="Measurement module coming soon."><i data-lucide="ruler"></i> Link Measurement</a>
+        <a href="{% url 'customers:measurement_add' %}" class="btn btn-outline-gold"><i data-lucide="ruler"></i> Link Measurement</a>
         <a href="{% url 'designs:design_list' %}" class="btn btn-charcoal"><i data-lucide="arrow-left"></i> Back to Designs</a>
       </div>
     </div>
@@ -120,9 +120,11 @@ document.addEventListener('DOMContentLoaded', function(){
   if (typeof lucide !== 'undefined') lucide.createIcons();
   var form = document.getElementById('statusForm');
   var msg = document.getElementById('statusMsg');
+  var loadingOverlay = document.getElementById('loadingOverlay');
   var designId = {{ design.pk }};
   form.addEventListener('submit', function(e){
     e.preventDefault();
+    if (loadingOverlay) loadingOverlay.style.display = 'flex';
     var fd = new FormData(form);
     fetch('/designs/' + designId + '/status/', {
       method: 'POST',
@@ -131,12 +133,18 @@ document.addEventListener('DOMContentLoaded', function(){
     })
     .then(function(r){ return r.json(); })
     .then(function(data){
+      if (loadingOverlay) loadingOverlay.style.display = 'none';
       if(data.ok){
         msg.innerHTML = '<div class="alert alert-success">Status updated to ' + data.new_status + '</div>';
         setTimeout(function(){ location.reload(); }, 800);
       } else {
         msg.innerHTML = '<div class="alert alert-danger">' + (data.error || 'Failed') + '</div>';
       }
+    })
+    .catch(function(err){
+      if (loadingOverlay) loadingOverlay.style.display = 'none';
+      msg.innerHTML = '<div class="alert alert-danger">Terjadi kesalahan jaringan. Coba lagi.</div>';
+      console.error(err);
     });
   });
   function getCookie(name){

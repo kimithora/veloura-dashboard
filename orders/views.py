@@ -1,3 +1,4 @@
+from django import forms
 from django.views.generic import ListView, CreateView, UpdateView, DetailView
 from django.urls import reverse_lazy, reverse
 from django.contrib import messages
@@ -6,6 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 from django.http import JsonResponse
 from django.db import transaction as db_transaction
+from django.db import models
 
 from core.mixins import RoleRequiredMixin
 from .models import Order, OrderStatusHistory
@@ -21,7 +23,10 @@ class OrderListView(RoleRequiredMixin, ListView):
     def get_queryset(self):
         qs = Order.objects.select_related('customer', 'cashier', 'designer').all()
         if self.request.user.has_role('DESIGNER'):
-            qs = qs.filter(designer=self.request.user)
+            # Designer sees orders assigned to them OR unassigned orders (available to claim).
+            qs = qs.filter(
+                models.Q(designer=self.request.user) | models.Q(designer__isnull=True)
+            )
         q = self.request.GET.get('q')
         if q:
             qs = qs.filter(order_number__icontains=q)
@@ -54,11 +59,13 @@ class OrderListView(RoleRequiredMixin, ListView):
 
 
 class OrderCreateView(RoleRequiredMixin, CreateView):
-    required_roles = ('ADMIN', 'CASHIER')
+    required_roles = ('ADMIN', 'CASHIER', 'DESIGNER')
     model = Order
     form_class = OrderForm
     template_name = 'catalog/form.html'
-    success_url = reverse_lazy('orders:order_list')
+
+    def get_success_url(self):
+        return reverse('orders:order_detail', kwargs={'pk': self.object.pk})
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -70,8 +77,22 @@ class OrderCreateView(RoleRequiredMixin, CreateView):
         })
         return ctx
 
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        # Only designer users can be assigned as order designer.
+        from accounts.models import User
+        designer_users = User.objects.filter(role__code='DESIGNER')
+        form.fields['designer'].queryset = designer_users
+        if self.request.user.has_role('DESIGNER'):
+            # Designer creating an order is automatically assigned as its designer.
+            form.fields['designer'].initial = self.request.user
+            form.fields['designer'].widget = forms.HiddenInput()
+        return form
+
     def form_valid(self, form):
         form.instance.cashier = self.request.user
+        if self.request.user.has_role('DESIGNER'):
+            form.instance.designer = self.request.user
         messages.success(self.request, 'Custom order created successfully.')
         return super().form_valid(form)
 
@@ -81,13 +102,18 @@ class OrderUpdateView(RoleRequiredMixin, UpdateView):
     model = Order
     form_class = OrderForm
     template_name = 'catalog/form.html'
-    success_url = reverse_lazy('orders:order_list')
 
     def get_queryset(self):
         qs = super().get_queryset()
         if self.request.user.has_role('DESIGNER'):
-            qs = qs.filter(designer=self.request.user)
+            # Designer can edit orders assigned to them, or claim unassigned ones.
+            qs = qs.filter(
+                models.Q(designer=self.request.user) | models.Q(designer__isnull=True)
+            )
         return qs
+
+    def get_success_url(self):
+        return reverse('orders:order_detail', kwargs={'pk': self.object.pk})
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -95,9 +121,28 @@ class OrderUpdateView(RoleRequiredMixin, UpdateView):
             'title': 'Edit Order',
             'subtitle': 'Update order details',
             'icon': 'edit-2',
-            'cancel_url': reverse_lazy('orders:order_list'),
+            'cancel_url': reverse('orders:order_detail', kwargs={'pk': self.object.pk}),
         })
         return ctx
+
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        from accounts.models import User
+        designer_users = User.objects.filter(role__code='DESIGNER')
+        form.fields['designer'].queryset = designer_users
+        if self.request.user.has_role('DESIGNER'):
+            # Designer editing their own order: keep designer field hidden (already assigned).
+            if self.object.designer_id == self.request.user.pk or self.object.designer_id is None:
+                form.fields['designer'].initial = self.request.user
+                form.fields['designer'].widget = forms.HiddenInput()
+        return form
+
+    def form_valid(self, form):
+        # Designer claiming an unassigned order becomes its designer.
+        if self.request.user.has_role('DESIGNER') and not form.instance.designer_id:
+            form.instance.designer = self.request.user
+        messages.success(self.request, 'Order updated successfully.')
+        return super().form_valid(form)
 
 
 class OrderDetailView(RoleRequiredMixin, DetailView):
@@ -109,7 +154,9 @@ class OrderDetailView(RoleRequiredMixin, DetailView):
     def get_queryset(self):
         qs = Order.objects.select_related('customer', 'cashier', 'designer').all()
         if self.request.user.has_role('DESIGNER'):
-            qs = qs.filter(designer=self.request.user)
+            qs = qs.filter(
+                models.Q(designer=self.request.user) | models.Q(designer__isnull=True)
+            )
         return qs
 
 
@@ -120,9 +167,14 @@ def update_order_status(request, pk):
     order = get_object_or_404(Order, pk=pk)
     if not request.user.has_role('ADMIN') and not request.user.has_role('CASHIER') and not request.user.has_role('DESIGNER'):
         return JsonResponse({'error': 'Unauthorized'}, status=403)
-    # Designer can only update orders assigned to them.
-    if request.user.has_role('DESIGNER') and order.designer_id != request.user.pk:
-        return JsonResponse({'error': 'You can only update orders assigned to you.'}, status=403)
+    # Designer can only update orders assigned to them, or claim an unassigned one.
+    if request.user.has_role('DESIGNER'):
+        if order.designer_id is None:
+            # Self-assign: designer claims this order by updating its status.
+            order.designer = request.user
+            order.save(update_fields=['designer', 'updated_at'])
+        elif order.designer_id != request.user.pk:
+            return JsonResponse({'error': 'You can only update orders assigned to you.'}, status=403)
     new_status = request.POST.get('status')
     notes = request.POST.get('notes', '')
     if new_status not in dict(Order.Status.choices):

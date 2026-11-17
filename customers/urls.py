@@ -8,4 +8,6 @@ urlpatterns = [
     path('add/', views.CustomerCreateView.as_view(), name='customer_add'),
     path('<int:pk>/edit/', views.CustomerUpdateView.as_view(), name='customer_edit'),
     path('<int:pk>/delete/', views.CustomerDeleteView.as_view(), name='customer_delete'),
+    path('measurements/', views.MeasurementListView.as_view(), name='measurement_list'),
+    path('measurements/add/', views.MeasurementCreateView.as_view(), name='measurement_add'),
 ]

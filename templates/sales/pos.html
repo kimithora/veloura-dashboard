@@ -385,6 +385,8 @@ document.addEventListener('DOMContentLoaded', function(){
     formData.append('notes', 'POS sale');
     if (payProof.files[0]) formData.append('payment_proof', payProof.files[0]);
 
+    var loadingOverlay = document.getElementById('loadingOverlay');
+    if (loadingOverlay) loadingOverlay.style.display = 'flex';
     fetch('/sales/checkout/', {
       method: 'POST',
       headers: {'X-CSRFToken': getCookie('csrftoken')},
@@ -392,12 +394,19 @@ document.addEventListener('DOMContentLoaded', function(){
     })
     .then(function(r){ return r.json(); })
     .then(function(data){
+      if (loadingOverlay) loadingOverlay.style.display = 'none';
       payModal.hide();
       if (data.ok){
         window.location.href = data.url;
       } else {
         alert('Checkout failed: ' + data.error);
       }
+    })
+    .catch(function(err){
+      if (loadingOverlay) loadingOverlay.style.display = 'none';
+      payModal.hide();
+      alert('Checkout failed: ' + (err && err.message ? err.message : 'Network error'));
+      console.error(err);
     });
   });
 

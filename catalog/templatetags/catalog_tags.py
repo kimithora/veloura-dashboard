@@ -5,11 +5,17 @@ register = template.Library()
 
 @register.filter
 def get_attr(obj, attr):
-    """Get an attribute from an object in a template."""
+    """Get an attribute from an object in a template. Supports dot-notation
+    for related fields (e.g. 'customer.full_name', 'order.order_number')."""
     if obj is None:
         return ''
     try:
-        return getattr(obj, attr)
+        value = obj
+        for part in attr.split('.'):
+            value = getattr(value, part)
+            if value is None:
+                return ''
+        return value
     except (AttributeError, TypeError):
         return ''
 

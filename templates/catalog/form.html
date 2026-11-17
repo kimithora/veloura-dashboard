@@ -14,15 +14,24 @@
   </div>
   <form method="post" enctype="multipart/form-data" class="row g-3">
     {% csrf_token %}
-    {% for field in form %}
-      <div class="col-md-6 {% if field.field.widget.input_type == 'file' %}col-md-12{% endif %}">
-        <label class="form-label">{{ field.label }}{% if field.field.required %}<span style="color:#c62828;">*</span>{% endif %}</label>
-        {{ field }}
-        {% if field.errors %}
-          <div class="text-danger small">{{ field.errors|join:", " }}</div>
-        {% endif %}
-        {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+    {% if form.non_field_errors %}
+      <div class="col-12">
+        <div class="alert alert-danger">{{ form.non_field_errors|join:", " }}</div>
       </div>
+    {% endif %}
+    {% for field in form %}
+      {% if field.field.widget.input_type == 'hidden' %}
+        {{ field }}
+      {% else %}
+        <div class="col-md-6 {% if field.field.widget.input_type == 'file' %}col-md-12{% endif %}">
+          <label class="form-label">{{ field.label }}{% if field.field.required %}<span style="color:#c62828;">*</span>{% endif %}</label>
+          {{ field }}
+          {% if field.errors %}
+            <div class="text-danger small">{{ field.errors|join:", " }}</div>
+          {% endif %}
+          {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+        </div>
+      {% endif %}
     {% endfor %}
     <div class="col-12 d-flex gap-2 mt-3">
       <button type="submit" class="btn btn-gold"><i data-lucide="save"></i> Save</button>

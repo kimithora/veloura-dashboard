@@ -181,29 +181,45 @@ document.addEventListener('DOMContentLoaded', function(){
     });
   });
 
+  var loadingOverlay = document.getElementById('loadingOverlay');
+
   window.confirmPayment = function(paymentId){
     if(!confirm('Konfirmasi pembayaran ini? Transaksi akan ditandai selesai jika total mencukupi.')) return;
+    if (loadingOverlay) loadingOverlay.style.display = 'flex';
     fetch('/payments/confirm/' + paymentId + '/', {
       method: 'POST',
       headers: {'X-CSRFToken': getCookie('csrftoken')},
     })
     .then(function(r){ return r.json(); })
     .then(function(data){
+      if (loadingOverlay) loadingOverlay.style.display = 'none';
       if(data.ok){ location.reload(); }
       else { alert('Gagal: ' + data.error); }
+    })
+    .catch(function(err){
+      if (loadingOverlay) loadingOverlay.style.display = 'none';
+      alert('Terjadi kesalahan jaringan. Coba lagi.');
+      console.error(err);
     });
   };
 
   window.voidPayment = function(paymentId){
     if(!confirm('Batalkan atau refund pembayaran ini?')) return;
+    if (loadingOverlay) loadingOverlay.style.display = 'flex';
     fetch('/payments/void/' + paymentId + '/', {
       method: 'POST',
       headers: {'X-CSRFToken': getCookie('csrftoken')},
     })
     .then(function(r){ return r.json(); })
     .then(function(data){
+      if (loadingOverlay) loadingOverlay.style.display = 'none';
       if(data.ok){ location.reload(); }
       else { alert('Gagal: ' + data.error); }
+    })
+    .catch(function(err){
+      if (loadingOverlay) loadingOverlay.style.display = 'none';
+      alert('Terjadi kesalahan jaringan. Coba lagi.');
+      console.error(err);
     });
   };
 

@@ -1,3 +1,4 @@
+from django import forms
 from django.views.generic import ListView, CreateView, UpdateView, DetailView
 from django.urls import reverse_lazy, reverse
 from django.contrib import messages
@@ -58,7 +59,18 @@ class DesignCreateView(RoleRequiredMixin, CreateView):
     model = Design
     form_class = DesignForm
     template_name = 'catalog/form.html'
-    success_url = reverse_lazy('designs:design_list')
+
+    def dispatch(self, request, *args, **kwargs):
+        order_pk = request.GET.get('order')
+        self.preselect_order = None
+        if order_pk:
+            self.preselect_order = get_object_or_404(Order, pk=order_pk)
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_success_url(self):
+        if self.preselect_order:
+            return reverse('orders:order_detail', kwargs={'pk': self.preselect_order.pk})
+        return reverse_lazy('designs:design_list')
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -66,11 +78,27 @@ class DesignCreateView(RoleRequiredMixin, CreateView):
             'title': 'Add Design',
             'subtitle': 'Create a new fashion design',
             'icon': 'layout',
-            'cancel_url': reverse_lazy('designs:design_list'),
+            'cancel_url': self.get_success_url(),
+            'preselect_order': self.preselect_order,
         })
         return ctx
 
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        if self.preselect_order:
+            form.fields['order'].initial = self.preselect_order
+            form.fields['order'].widget = forms.HiddenInput()
+            form.fields['designer'].initial = self.request.user
+            form.fields['designer'].widget = forms.HiddenInput()
+            if not form.initial.get('name'):
+                form.fields['name'].initial = 'Design - {}'.format(
+                    self.preselect_order.order_number)
+        return form
+
     def form_valid(self, form):
+        if self.preselect_order:
+            form.instance.order = self.preselect_order
+            form.instance.designer = self.request.user
         messages.success(self.request, 'Design created successfully.')
         return super().form_valid(form)
 

@@ -16,23 +16,17 @@
   <a href="{% url 'orders:order_list' %}" class="nav-link">
     <i data-lucide="scissors"></i> Custom Orders
   </a>
-  <a href="#" class="nav-link" onclick="return false;" data-confirm="Measurement management coming soon.">
+  <a href="{% url 'customers:measurement_list' %}" class="nav-link">
     <i data-lucide="ruler"></i> Measurements
   </a>
   <a href="{% url 'production:production_list' %}" class="nav-link">
     <i data-lucide="layers"></i> Production
   </a>
-  <a href="#" class="nav-link" onclick="return false;" data-confirm="Fitting management coming soon.">
+  <a href="{% url 'production:fitting_list' %}" class="nav-link">
     <i data-lucide="calendar"></i> Fittings
   </a>
   <a href="{% url 'production:qc_list' %}" class="nav-link">
     <i data-lucide="check-circle-2"></i> Quality Control
-  </a>
-
-  <div class="divider"></div>
-  <div class="nav-group-label">Coming Soon</div>
-  <a href="#" class="nav-link" onclick="return false;" data-confirm="Design portfolio coming in Phase 5.">
-    <i data-lucide="image"></i> Design Portfolio
   </a>
 {% endblock %}
 
@@ -92,6 +86,15 @@
         <h3>Custom Orders</h3>
         <p class="text-muted small">View and update custom order status.</p>
         <a href="{% url 'orders:order_list' %}" class="btn btn-gold mt-3">Manage Orders</a>
+        <a href="{% url 'orders:order_add' %}" class="btn btn-outline-gold mt-2">Add New Order</a>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="empty-state" style="padding:2rem;background:var(--veloura-white);border:1px solid var(--veloura-border);border-radius:16px;">
+        <i data-lucide="user-plus"></i>
+        <h3>Add Member</h3>
+        <p class="text-muted small">Daftarkan pelanggan baru sebelum membuat pesanan custom.</p>
+        <a href="{% url 'customers:customer_add' %}" class="btn btn-gold mt-3">Register Member</a>
       </div>
     </div>
   </div>

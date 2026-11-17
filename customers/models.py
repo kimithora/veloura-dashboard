@@ -45,15 +45,19 @@ class Customer(BaseModel, AuditMixin):
 
     def save(self, *args, **kwargs):
         if not self.customer_id:
-            # Simple sequential customer id; generated on first save.
-            last = Customer.objects.order_by('-customer_id').first()
+            # Generate a unique sequential customer id (CUST-0001, CUST-0002, ...)
+            last = Customer.objects.filter(customer_id__startswith='CUST-').order_by('-customer_id').first()
             num = 1
-            if last and last.customer_id and last.customer_id.startswith('CUST-'):
+            if last and last.customer_id:
                 try:
                     num = int(last.customer_id.split('-')[1]) + 1
                 except (ValueError, IndexError):
                     num = 1
-            self.customer_id = 'CUST-{:04d}'.format(num)
+            candidate = 'CUST-{:04d}'.format(num)
+            while Customer.objects.filter(customer_id=candidate).exists():
+                num += 1
+                candidate = 'CUST-{:04d}'.format(num)
+            self.customer_id = candidate
         super().save(*args, **kwargs)
 
     def __str__(self):
