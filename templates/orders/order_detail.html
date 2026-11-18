@@ -61,6 +61,128 @@
     </div>
 
     <div class="section mt-4">
+      <div class="section-header">
+        <h3 class="section-title"><i data-lucide="credit-card"></i> Payments</h3>
+        {% if user_role_code == 'ADMIN' or user_role_code == 'CASHIER' %}
+        <button class="btn btn-gold" data-bs-toggle="modal" data-bs-target="#recordPaymentModal"><i data-lucide="plus"></i> Catat Pembayaran</button>
+        {% endif %}
+      </div>
+      <div class="row g-3 mb-3">
+        <div class="col-md-4">
+          <div class="stat-card">
+            <div class="label">Total Pesanan</div>
+            <p class="value">{{ VELOURA_CURRENCY_SYMBOL }} {{ order.total_amount|floatformat:0 }}</p>
+            <div class="icon gold"><i data-lucide="receipt"></i></div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="stat-card">
+            <div class="label">Dibayar (DP)</div>
+            <p class="value">{{ VELOURA_CURRENCY_SYMBOL }} {{ order.dp_amount|floatformat:0 }}</p>
+            <div class="icon ivory"><i data-lucide="check-circle-2"></i></div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="stat-card">
+            <div class="label">Sisa Tagihan</div>
+            <p class="value">{{ VELOURA_CURRENCY_SYMBOL }} {{ order.remaining_balance|floatformat:0 }}</p>
+            <div class="icon gray"><i data-lucide="wallet"></i></div>
+          </div>
+        </div>
+      </div>
+      {% if order.payments.exists %}
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr><th>Tanggal</th><th>Tipe</th><th>Metode</th><th>Jumlah</th><th>Status</th><th>Dikonfirmasi</th><th>Aksi</th></tr>
+          </thead>
+          <tbody>
+            {% for p in order.payments.all %}
+            <tr>
+              <td>{{ p.created_at|date:"d M Y H:i" }}</td>
+              <td>{{ p.get_payment_type_display }}</td>
+              <td>{{ p.get_method_display }}</td>
+              <td class="text-end">{{ VELOURA_CURRENCY_SYMBOL }} {{ p.amount|floatformat:0 }}</td>
+              <td>
+                <span class="badge {% if p.status == 'CONFIRMED' %}bg-success text-white{% elif p.status == 'PENDING' %}bg-warning text-dark{% elif p.status == 'REFUNDED' %}bg-danger text-white{% else %}bg-secondary text-white{% endif %}">{{ p.get_status_display }}</span>
+              </td>
+              <td>{{ p.confirmed_by.username|default:'-' }}</td>
+              <td>
+                {% if user_role_code == 'ADMIN' or user_role_code == 'CASHIER' %}
+                  {% if p.status == 'PENDING' %}
+                    <button class="btn btn-sm btn-gold" onclick="confirmOrderPayment({{ p.pk }})" title="Konfirmasi"><i data-lucide="check"></i></button>
+                  {% endif %}
+                  {% if p.status == 'PENDING' or p.status == 'CONFIRMED' %}
+                    <button class="btn btn-sm" style="color:#c62828;border:1px solid #c62828;" onclick="voidOrderPayment({{ p.pk }})" title="Batalkan / Refund"><i data-lucide="x-circle"></i></button>
+                  {% endif %}
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-muted">Belum ada pembayaran.</p>
+      {% endif %}
+    </div>
+
+    <!-- Record Payment Modal -->
+    <div class="modal fade" id="recordPaymentModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <form method="post" enctype="multipart/form-data" action="{% url 'payments:record_order_payment' order_pk=order.pk %}">
+            {% csrf_token %}
+            <div class="modal-header">
+              <h5 class="modal-title"><i data-lucide="credit-card"></i> Catat Pembayaran</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div class="mb-3">
+                <label class="form-label">Jumlah <span style="color:#c62828;">*</span></label>
+                <input type="number" name="amount" class="form-control" step="0.01" min="0" required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Tipe Pembayaran</label>
+                <select name="payment_type" class="form-select">
+                  <option value="DP">Down Payment (DP)</option>
+                  <option value="INSTALLMENT">Installment</option>
+                  <option value="FULL">Full Payment</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Metode</label>
+                <select name="method" class="form-select" required>
+                  <option value="CASH">Cash</option>
+                  <option value="BANK_TRANSFER">Bank Transfer</option>
+                  <option value="QRIS">QRIS</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Jatuh Tempo (opsional)</label>
+                <input type="date" name="due_date" class="form-control">
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Bukti Pembayaran (opsional)</label>
+                <input type="file" name="payment_proof" class="form-control">
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Catatan</label>
+                <textarea name="notes" class="form-control" rows="2"></textarea>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-charcoal" data-bs-dismiss="modal">Batal</button>
+              <button type="submit" class="btn btn-gold">Catat Pembayaran</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="section mt-4">
       <h3>Status History</h3>
       <div class="table-responsive">
         <table class="table">
@@ -134,6 +256,35 @@
 
 {% block extra_js %}
 <script>
+function confirmOrderPayment(paymentId){
+  if(!confirm('Konfirmasi pembayaran order ini?')) return;
+  fetch('/payments/order/confirm/' + paymentId + '/', {
+    method: 'POST',
+    headers: {'X-CSRFToken': getCookie('csrftoken')},
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    if(data.ok){ location.reload(); }
+    else { alert('Gagal: ' + (data.error || 'Unknown error')); }
+  });
+}
+function voidOrderPayment(paymentId){
+  if(!confirm('Batalkan atau refund pembayaran order ini?')) return;
+  fetch('/payments/order/void/' + paymentId + '/', {
+    method: 'POST',
+    headers: {'X-CSRFToken': getCookie('csrftoken')},
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    if(data.ok){ location.reload(); }
+    else { alert('Gagal: ' + (data.error || 'Unknown error')); }
+  });
+}
+function getCookie(name){
+  var v = document.cookie.match('(^|; )' + name + '=([^;]*)');
+  return v ? decodeURIComponent(v[2]) : null;
+}
+
 document.addEventListener('DOMContentLoaded', function(){
   if (typeof lucide !== 'undefined') lucide.createIcons();
   var form = document.getElementById('statusForm');
@@ -165,10 +316,6 @@ document.addEventListener('DOMContentLoaded', function(){
       console.error(err);
     });
   });
-  function getCookie(name){
-    var v = document.cookie.match('(^|; )' + name + '=([^;]*)');
-    return v ? decodeURIComponent(v[2]) : null;
-  }
 });
 </script>
 {% endblock %}

@@ -13,8 +13,9 @@ from sales.service import TransactionService, InsufficientStockError
 from inventory.models import StockMovement
 from catalog.models import ProductVariant
 from django.contrib.contenttypes.models import ContentType
-from .models import Payment
-from .forms import PaymentRecordForm
+from .models import Payment, OrderPayment
+from .forms import PaymentRecordForm, OrderPaymentRecordForm
+from orders.models import Order
 
 
 def _cashier_or_admin_required(request):
@@ -257,3 +258,146 @@ def transaction_payments(request, transaction_pk):
         'transaction': tx,
         'payments': payments,
     })
+
+
+# ---------------------------------------------------------
+# Pembayaran Custom Order (DP / Cicilan / Lunas)
+# ---------------------------------------------------------
+
+def _sync_order_dp(order):
+    """Sinkronkan dp_amount order dengan total pembayaran CONFIRMED."""
+    confirmed = OrderPayment.objects.filter(
+        order=order, status=OrderPayment.Status.CONFIRMED
+    ).aggregate(total=Sum('amount'))['total'] or 0
+    order.dp_amount = confirmed
+    order.save(update_fields=['dp_amount', 'updated_at'])
+
+
+@login_required
+@require_POST
+def record_order_payment(request, order_pk):
+    order = get_object_or_404(Order, pk=order_pk)
+    if not _cashier_or_admin_required(request):
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+    form = OrderPaymentRecordForm(request.POST, request.FILES)
+    if form.is_valid():
+        payment = form.save(commit=False)
+        payment.order = order
+        payment.status = OrderPayment.Status.PENDING
+        payment.created_by = request.user
+        payment.updated_by = request.user
+        payment.save()
+        messages.success(request, 'Pembayaran custom order dicatat. Menunggu konfirmasi.')
+        return redirect('orders:order_detail', pk=order.pk)
+    messages.error(request, 'Form pembayaran tidak valid.')
+    return redirect('orders:order_detail', pk=order.pk)
+
+
+@login_required
+@require_POST
+def confirm_order_payment(request, payment_pk):
+    payment = get_object_or_404(OrderPayment, pk=payment_pk)
+    if not _cashier_or_admin_required(request):
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+    if payment.status != OrderPayment.Status.PENDING:
+        return JsonResponse({'error': 'Pembayaran sudah diproses'}, status=400)
+    with db_transaction.atomic():
+        payment = OrderPayment.objects.select_for_update().get(pk=payment_pk)
+        order = Order.objects.select_for_update().get(pk=payment.order_id)
+        if payment.status != OrderPayment.Status.PENDING:
+            return JsonResponse({'error': 'Pembayaran sudah diproses'}, status=400)
+        payment.status = OrderPayment.Status.CONFIRMED
+        payment.confirmed_at = timezone.now()
+        payment.confirmed_by = request.user
+        payment.updated_by = request.user
+        payment.save(update_fields=['status', 'confirmed_at', 'confirmed_by', 'updated_at', 'updated_by'])
+        _sync_order_dp(order)
+    messages.success(request, 'Pembayaran order dikonfirmasi. DP/sisa pembayaran diperbarui otomatis.')
+    return JsonResponse({'ok': True})
+
+
+@login_required
+@require_POST
+def void_order_payment(request, payment_pk):
+    payment = get_object_or_404(OrderPayment, pk=payment_pk)
+    if not _cashier_or_admin_required(request):
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+    with db_transaction.atomic():
+        payment = OrderPayment.objects.select_for_update().get(pk=payment_pk)
+        order = Order.objects.select_for_update().get(pk=payment.order_id)
+        if payment.status == OrderPayment.Status.PENDING:
+            payment.status = OrderPayment.Status.FAILED
+            payment.updated_by = request.user
+            payment.save(update_fields=['status', 'updated_at', 'updated_by'])
+            messages.success(request, 'Pembayaran pending dibatalkan.')
+        elif payment.status == OrderPayment.Status.CONFIRMED:
+            payment.status = OrderPayment.Status.REFUNDED
+            payment.updated_by = request.user
+            payment.save(update_fields=['status', 'updated_at', 'updated_by'])
+            _sync_order_dp(order)
+            messages.success(request, 'Pembayaran order dikembalikan (refund).')
+        else:
+            return JsonResponse({'error': 'Tidak dapat membatalkan pembayaran ini.'}, status=400)
+    return JsonResponse({'ok': True})
+
+
+@login_required
+def order_payment_list(request):
+    if not _cashier_or_admin_required(request):
+        messages.error(request, 'Tidak diizinkan.')
+        return redirect('core:dashboard')
+
+    qs = OrderPayment.objects.select_related('order', 'order__customer', 'confirmed_by').all()
+
+    q = request.GET.get('q', '').strip()
+    status = request.GET.get('status', '')
+    method = request.GET.get('method', '')
+    payment_type = request.GET.get('payment_type', '')
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+
+    if q:
+        qs = qs.filter(
+            Q(order__order_number__icontains=q) |
+            Q(order__customer__full_name__icontains=q) |
+            Q(confirmed_by__username__icontains=q)
+        )
+    if status:
+        qs = qs.filter(status=status)
+    if method:
+        qs = qs.filter(method=method)
+    if payment_type:
+        qs = qs.filter(payment_type=payment_type)
+    if date_from:
+        qs = qs.filter(created_at__date__gte=date_from)
+    if date_to:
+        qs = qs.filter(created_at__date__lte=date_to)
+
+    paginator = Paginator(qs, 25)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    confirmed_total = qs.filter(status='CONFIRMED').aggregate(total=Sum('amount'))['total'] or 0
+    pending_total = qs.filter(status='PENDING').aggregate(total=Sum('amount'))['total'] or 0
+
+    context = {
+        'title': 'Pembayaran Custom Order',
+        'subtitle': 'Histori dan konfirmasi pembayaran custom order',
+        'payments': page_obj,
+        'page_obj': page_obj,
+        'is_paginated': page_obj.has_other_pages(),
+        'confirmed_total': confirmed_total,
+        'pending_total': pending_total,
+        'query': q,
+        'current_filters': {
+            'status': status,
+            'method': method,
+            'payment_type': payment_type,
+            'date_from': date_from,
+            'date_to': date_to,
+        },
+        'status_choices': OrderPayment.Status.choices,
+        'method_choices': OrderPayment.Method.choices,
+        'payment_type_choices': OrderPayment.PaymentType.choices,
+    }
+    return render(request, 'payments/order_payment_list.html', context)
