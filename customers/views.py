@@ -27,6 +27,8 @@ class CustomerListView(RoleRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         qs = self.get_queryset()
+        create_url = 'customers:customer_add' if not self.request.user.has_role('DESIGNER') else None
+        create_label = 'Add Customer' if create_url else None
         ctx.update({
             'title': 'Customers',
             'subtitle': 'Manage customer profiles',
@@ -39,8 +41,8 @@ class CustomerListView(RoleRequiredMixin, ListView):
                 {'header': 'Email', 'field': 'email'},
                 {'header': 'Total Spending', 'field': 'total_spending'},
             ],
-            'create_url': 'customers:customer_add',
-            'create_label': 'Add Customer',
+            'create_url': create_url,
+            'create_label': create_label,
             'edit_url': 'customers:customer_edit',
             'delete_url': 'customers:customer_delete',
             'empty_message': 'No customers found.',
@@ -50,7 +52,7 @@ class CustomerListView(RoleRequiredMixin, ListView):
 
 
 class CustomerCreateView(RoleRequiredMixin, CreateView):
-    required_roles = ('ADMIN', 'CASHIER', 'DESIGNER')
+    required_roles = ('ADMIN', 'CASHIER')
     model = Customer
     form_class = CustomerForm
     template_name = 'catalog/form.html'
@@ -67,6 +69,8 @@ class CustomerCreateView(RoleRequiredMixin, CreateView):
         return ctx
 
     def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        form.instance.updated_by = self.request.user
         messages.success(self.request, 'Customer created successfully.')
         return super().form_valid(form)
 
@@ -89,6 +93,7 @@ class CustomerUpdateView(RoleRequiredMixin, UpdateView):
         return ctx
 
     def form_valid(self, form):
+        form.instance.updated_by = self.request.user
         messages.success(self.request, 'Customer updated successfully.')
         return super().form_valid(form)
 
@@ -123,13 +128,16 @@ class MeasurementListView(RoleRequiredMixin, ListView):
         q = self.request.GET.get('q')
         if q:
             qs = qs.filter(
-                measurement_id__icontains=q
-            ) | qs.filter(customer__full_name__icontains=q)
+                Q(measurement_id__icontains=q) |
+                Q(customer__full_name__icontains=q)
+            )
         return qs
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         qs = self.get_queryset()
+        create_url = 'customers:measurement_add' if not self.request.user.has_role('DESIGNER') else None
+        create_label = 'Add Measurement' if create_url else None
         ctx.update({
             'title': 'Measurements',
             'subtitle': 'Customer body measurement records',
@@ -141,8 +149,8 @@ class MeasurementListView(RoleRequiredMixin, ListView):
                 {'header': 'Order', 'field': 'order.order_number'},
                 {'header': 'Date', 'field': 'measurement_date'},
             ],
-            'create_url': 'customers:measurement_add',
-            'create_label': 'Add Measurement',
+            'create_url': create_url,
+            'create_label': create_label,
             'empty_message': 'No measurement records found.',
             'query': self.request.GET.get('q', ''),
         })
@@ -160,6 +168,9 @@ class MeasurementCreateView(RoleRequiredMixin, CreateView):
         self.preselect_order = None
         if order_pk:
             self.preselect_order = get_object_or_404(Order, pk=order_pk)
+            if request.user.has_role('DESIGNER'):
+                if self.preselect_order.designer_id not in (None, request.user.pk):
+                    return self.handle_no_permission()
         return super().dispatch(request, *args, **kwargs)
 
     def get_success_url(self):
@@ -180,6 +191,11 @@ class MeasurementCreateView(RoleRequiredMixin, CreateView):
 
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
+        if self.request.user.has_role('DESIGNER'):
+            # Designer may only measure for own or unassigned orders.
+            form.fields['order'].queryset = Order.objects.filter(
+                Q(designer=self.request.user) | Q(designer__isnull=True)
+            )
         if self.preselect_order:
             form.fields['customer'].initial = self.preselect_order.customer
             form.fields['customer'].widget = forms.HiddenInput()
@@ -191,6 +207,8 @@ class MeasurementCreateView(RoleRequiredMixin, CreateView):
         if self.preselect_order:
             form.instance.customer = self.preselect_order.customer
             form.instance.order = self.preselect_order
+        form.instance.created_by = self.request.user
+        form.instance.updated_by = self.request.user
         messages.success(self.request, 'Measurement recorded successfully.')
         return super().form_valid(form)
 

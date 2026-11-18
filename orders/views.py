@@ -35,13 +35,15 @@ class OrderListView(RoleRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         qs = self.get_queryset()
+        create_url = 'orders:order_add' if not self.request.user.has_role('DESIGNER') else None
+        create_label = 'Add Order' if create_url else None
         ctx.update({
             'title': 'Custom Orders',
             'subtitle': 'Manage couture custom orders',
             'icon': 'scissors',
             'object_list': qs,
             'columns': [
-                {'header': 'Order #', 'field': 'order_number'},
+                {'header': 'Order #', 'field': 'order_number', 'detail_url': 'orders:order_detail'},
                 {'header': 'Customer', 'field': 'customer.full_name'},
                 {'header': 'Cashier', 'field': 'cashier.username'},
                 {'header': 'Designer', 'field': 'designer.username'},
@@ -49,9 +51,10 @@ class OrderListView(RoleRequiredMixin, ListView):
                 {'header': 'Total', 'field': 'total_amount'},
                 {'header': 'Balance', 'field': 'remaining_balance'},
             ],
-            'create_url': 'orders:order_add',
-            'create_label': 'Add Order',
+            'create_url': create_url,
+            'create_label': create_label,
             'detail_url': 'orders:order_detail',
+            'edit_url': 'orders:order_edit',
             'empty_message': 'No custom orders found.',
             'query': self.request.GET.get('q', ''),
         })
@@ -93,6 +96,8 @@ class OrderCreateView(RoleRequiredMixin, CreateView):
         form.instance.cashier = self.request.user
         if self.request.user.has_role('DESIGNER'):
             form.instance.designer = self.request.user
+        form.instance.created_by = self.request.user
+        form.instance.updated_by = self.request.user
         messages.success(self.request, 'Custom order created successfully.')
         return super().form_valid(form)
 
@@ -141,6 +146,7 @@ class OrderUpdateView(RoleRequiredMixin, UpdateView):
         # Designer claiming an unassigned order becomes its designer.
         if self.request.user.has_role('DESIGNER') and not form.instance.designer_id:
             form.instance.designer = self.request.user
+        form.instance.updated_by = self.request.user
         messages.success(self.request, 'Order updated successfully.')
         return super().form_valid(form)
 
@@ -172,7 +178,8 @@ def update_order_status(request, pk):
         if order.designer_id is None:
             # Self-assign: designer claims this order by updating its status.
             order.designer = request.user
-            order.save(update_fields=['designer', 'updated_at'])
+            order.updated_by = request.user
+            order.save(update_fields=['designer', 'updated_at', 'updated_by'])
         elif order.designer_id != request.user.pk:
             return JsonResponse({'error': 'You can only update orders assigned to you.'}, status=403)
     new_status = request.POST.get('status')
@@ -182,7 +189,8 @@ def update_order_status(request, pk):
     with db_transaction.atomic():
         old_status = order.status
         order.status = new_status
-        order.save(update_fields=['status', 'updated_at'])
+        order.updated_by = request.user
+        order.save(update_fields=['status', 'updated_at', 'updated_by'])
         OrderStatusHistory.objects.create(
             order=order, status=new_status, changed_by=request.user,
             notes='Changed from {} to {}'.format(old_status, new_status) + (' - ' + notes if notes else ''),

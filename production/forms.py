@@ -1,5 +1,6 @@
 from django import forms
 from .models import Production, MaterialRequest, QualityControl
+from accounts.models import User
 
 
 class ProductionForm(forms.ModelForm):
@@ -19,6 +20,10 @@ class ProductionForm(forms.ModelForm):
             'status': forms.Select(attrs={'class': 'form-select'}),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['designer'].queryset = User.objects.filter(role__code='DESIGNER')
 
 
 class MaterialRequestForm(forms.ModelForm):

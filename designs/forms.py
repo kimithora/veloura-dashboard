@@ -1,5 +1,6 @@
 from django import forms
 from .models import Design
+from accounts.models import User
 
 
 class DesignForm(forms.ModelForm):
@@ -25,3 +26,8 @@ class DesignForm(forms.ModelForm):
             'estimated_duration_days': forms.NumberInput(attrs={'class': 'form-control'}),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Only designer users can be assigned as designer.
+        self.fields['designer'].queryset = User.objects.filter(role__code='DESIGNER')

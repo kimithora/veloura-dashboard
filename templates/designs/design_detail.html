@@ -105,7 +105,7 @@
     <div class="section mt-4">
       <h3>Actions</h3>
       <div class="d-grid gap-2">
-        <a href="{% url 'customers:measurement_add' %}" class="btn btn-outline-gold"><i data-lucide="ruler"></i> Link Measurement</a>
+        <a href="{% url 'customers:measurement_add' %}?order={{ design.order.pk }}" class="btn btn-outline-gold"><i data-lucide="ruler"></i> Link Measurement</a>
         <a href="{% url 'designs:design_list' %}" class="btn btn-charcoal"><i data-lucide="arrow-left"></i> Back to Designs</a>
       </div>
     </div>
@@ -126,7 +126,7 @@ document.addEventListener('DOMContentLoaded', function(){
     e.preventDefault();
     if (loadingOverlay) loadingOverlay.style.display = 'flex';
     var fd = new FormData(form);
-    fetch('/designs/' + designId + '/status/', {
+    fetch('{% url "designs:update_design_status" pk=design.pk %}', {
       method: 'POST',
       headers: {'X-CSRFToken': getCookie('csrftoken')},
       body: fd,

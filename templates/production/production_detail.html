@@ -86,10 +86,11 @@
     </div>
 
     <div class="section mt-4">
-      <h3>Record Material Usage</h3>
-      <p class="text-muted small">Records actual material consumption and reduces inventory.</p>
+      <h3>Materials</h3>
+      <p class="text-muted small">Request or record materials for this production.</p>
       <div class="d-grid gap-2">
-        <a href="{% url 'production:material_usage_add' %}" class="btn btn-outline-gold"><i data-lucide="activity"></i> Record Usage</a>
+        <a href="{% url 'production:material_request_add' %}?production={{ production.pk }}" class="btn btn-outline-gold"><i data-lucide="package"></i> Request Material</a>
+        <a href="{% url 'production:material_usage_add' %}?production={{ production.pk }}" class="btn btn-outline-gold"><i data-lucide="activity"></i> Record Usage</a>
       </div>
     </div>
 
@@ -116,7 +117,7 @@ document.addEventListener('DOMContentLoaded', function(){
     e.preventDefault();
     if (loadingOverlay) loadingOverlay.style.display = 'flex';
     var fd = new FormData(form);
-    fetch('/production/' + productionId + '/update/', {
+    fetch('{% url "production:production_update" pk=production.pk %}', {
       method: 'POST',
       headers: {'X-CSRFToken': getCookie('csrftoken')},
       body: fd,
