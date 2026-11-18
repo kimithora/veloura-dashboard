@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+
+{% block title %}Customer Orders — VELOURA{% endblock %}
+
+{% block page_title %}Customer Orders{% endblock %}
+{% block page_subtitle %}Pelanggan dan progress pesanan mereka{% endblock %}
+
+{% block sidebar %}
+  <div class="nav-group-label">Main</div>
+  <a href="{% url 'core:dashboard' %}" class="nav-link">
+    <i data-lucide="layout-dashboard"></i> Dashboard
+  </a>
+  <a href="{% url 'customers:customer_list' %}" class="nav-link">
+    <i data-lucide="users"></i> Customers
+  </a>
+  <a href="{% url 'customers:customer_orders' %}" class="nav-link active" aria-current="page">
+    <i data-lucide="clipboard-list"></i> Customer Orders
+  </a>
+  <a href="{% url 'orders:order_list' %}" class="nav-link">
+    <i data-lucide="scissors"></i> Custom Orders
+  </a>
+{% endblock %}
+
+{% block content %}
+<div class="section">
+  <div class="section-header">
+    <h2 class="section-title"><i data-lucide="clipboard-list"></i> Customer Orders</h2>
+  </div>
+
+  <form method="get" class="row g-3 mb-4 align-items-end">
+    <div class="col-md-4">
+      <div class="input-group">
+        <span class="input-group-text"><i data-lucide="search"></i></span>
+        <input type="text" name="q" class="form-control" value="{{ request.GET.q }}" placeholder="Search customer / order…">
+      </div>
+    </div>
+    <div class="col-md-2 d-grid">
+      <button class="btn btn-charcoal" type="submit"><i data-lucide="search"></i> Filter</button>
+    </div>
+    <div class="col-md-2 d-grid">
+      {% if request.GET.q %}
+        <a href="{{ request.path }}" class="btn btn-outline-gold"><i data-lucide="rotate-ccw"></i> Reset</a>
+      {% endif %}
+    </div>
+  </form>
+
+  {% if customers_with_orders %}
+  <div class="table-responsive">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>ID Customer</th>
+          <th>Nama</th>
+          <th>No. Pesanan</th>
+          <th>Status Order</th>
+          <th>Progress Produksi</th>
+          <th>Status Produksi</th>
+          <th>Desain</th>
+          <th>Deadline</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for customer in customers_with_orders %}
+          {% for order in customer.custom_orders.all %}
+          <tr>
+            <td><strong>{{ customer.customer_id }}</strong></td>
+            <td>{{ customer.full_name }}</td>
+            <td><a href="{% url 'orders:order_detail' pk=order.pk %}">{{ order.order_number }}</a></td>
+            <td>
+              <span class="badge badge-status {% if order.status == 'COMPLETED' %}badge-status-completed{% elif order.status == 'CANCELLED' %}badge-status-rejected{% else %}badge-status-pending{% endif %}">
+                {{ order.get_status_display }}
+              </span>
+            </td>
+            <td style="min-width:180px;">
+              {% with latest=order.productions.all|slice:":1" %}
+                {% for prod in latest %}
+                  <div class="progress mb-1" style="height:10px;">
+                    <div class="progress-bar bg-gold" role="progressbar" style="width: {{ prod.progress }}%" aria-valuenow="{{ prod.progress }}" aria-valuemin="0" aria-valuemax="100"></div>
+                  </div>
+                  <small class="text-muted">{{ prod.progress }}%</small>
+                {% empty %}
+                  <span class="text-muted">Belum ada produksi</span>
+                {% endfor %}
+              {% endwith %}
+            </td>
+            <td>
+              {% with latest=order.productions.all|slice:":1" %}
+                {% for prod in latest %}
+                  {{ prod.get_status_display }}
+                {% empty %}
+                  <span class="text-muted">-</span>
+                {% endfor %}
+              {% endwith %}
+            </td>
+            <td>
+              {% with latest=order.designs.all|slice:":1" %}
+                {% for design in latest %}
+                  <span class="badge badge-soft">{{ design.get_status_display }}</span>
+                {% empty %}
+                  <span class="text-muted">-</span>
+                {% endfor %}
+              {% endwith %}
+            </td>
+            <td>{{ order.required_date|date:"d M Y"|default:"-" }}</td>
+          </tr>
+          {% endfor %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <i data-lucide="inbox"></i>
+    <h3>Belum ada pesanan</h3>
+    <p class="text-muted">Belum ada pelanggan yang memiliki custom order.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function(){
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  });
+</script>
+{% endblock %}

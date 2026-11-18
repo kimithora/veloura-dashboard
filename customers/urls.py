@@ -10,4 +10,5 @@ urlpatterns = [
     path('<int:pk>/delete/', views.CustomerDeleteView.as_view(), name='customer_delete'),
     path('measurements/', views.MeasurementListView.as_view(), name='measurement_list'),
     path('measurements/add/', views.MeasurementCreateView.as_view(), name='measurement_add'),
+    path('orders/', views.CustomerOrdersTableView.as_view(), name='customer_orders'),
 ]

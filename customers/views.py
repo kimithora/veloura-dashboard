@@ -3,6 +3,7 @@ from django.views.generic import ListView, CreateView, UpdateView, DeleteView
 from django.urls import reverse_lazy, reverse
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect
+from django.db.models import Q, Prefetch
 
 from core.mixins import RoleRequiredMixin
 from .models import Customer, Measurement
@@ -192,3 +193,46 @@ class MeasurementCreateView(RoleRequiredMixin, CreateView):
             form.instance.order = self.preselect_order
         messages.success(self.request, 'Measurement recorded successfully.')
         return super().form_valid(form)
+
+
+class CustomerOrdersTableView(RoleRequiredMixin, ListView):
+    """
+    Tabel pelanggan yang punya custom order, menampilkan ID customer,
+    nama, pesanan, dan progress terkini (produksi/desain).
+    """
+    required_roles = ('ADMIN', 'CASHIER', 'DESIGNER')
+    template_name = 'customers/customer_orders.html'
+    context_object_name = 'customers_with_orders'
+    paginate_by = 20
+
+    def get_queryset(self):
+        qs = (
+            Customer.objects.filter(custom_orders__isnull=False)
+            .distinct()
+            .prefetch_related(
+                Prefetch(
+                    'custom_orders',
+                    queryset=Order.objects.select_related('cashier', 'designer')
+                        .prefetch_related('productions', 'designs')
+                        .order_by('-order_date')
+                )
+            )
+            .order_by('full_name')
+        )
+        q = self.request.GET.get('q')
+        if q:
+            qs = qs.filter(
+                Q(full_name__icontains=q) |
+                Q(customer_id__icontains=q) |
+                Q(custom_orders__order_number__icontains=q)
+            ).distinct()
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx.update({
+            'title': 'Customer Orders',
+            'subtitle': 'Pelanggan dan progress pesanan mereka',
+            'icon': 'users',
+        })
+        return ctx
