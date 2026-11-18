@@ -1,6 +1,10 @@
 %%{init: {"theme": "forest", "themeVariables": {"fontSize": "16px", "fontFamily": "Arial"}}}%%
 erDiagram
 
+    %% =====================================================
+    %% VELOURA — ERD aktual (sinkron dengan db.sqlite3)
+    %% =====================================================
+
     ROLE ||--o{ USER : "memiliki (role)"
     USER ||--o{ CUSTOMER : "profil pelanggan (opsional)"
     USER ||--o{ ORDER : "kasir pembuat / desainer ditunjuk"
@@ -14,21 +18,30 @@ erDiagram
     USER ||--o{ DESIGN_VERSION : "membuat revisi desain"
     USER ||--o{ STOCK_MOVEMENT : "mencatat gerakan stok"
     USER ||--o{ TRANSACTION : "melayani transaksi (kasir)"
+    USER ||--o{ DJANGO_ADMIN_LOG : "log admin"
+    USER ||--o{ DJANGO_SESSION : "sesi login"
 
     ROLE {
-        int id PK
-        string code UK
-        string name
-        string description
+        integer id PK
+        varchar code UK
+        varchar name
+        text description
     }
 
     USER {
-        int id PK
-        string username UK
-        string email
-        string phone
-        string address
-        int role_id FK
+        integer id PK
+        varchar username UK
+        varchar email
+        varchar first_name
+        varchar last_name
+        varchar phone
+        text address
+        boolean is_active
+        boolean is_staff
+        boolean is_superuser
+        datetime last_login
+        datetime date_joined
+        bigint role_id FK
     }
 
     CUSTOMER ||--o{ ORDER : "memesan"
@@ -37,26 +50,42 @@ erDiagram
     CUSTOMER ||--o{ TRANSACTION : "bertransaksi"
 
     CUSTOMER {
-        int id PK
-        string customer_id UK
-        string full_name
-        string phone
-        string email
-        string address
-        string source
+        integer id PK
+        varchar customer_id UK
+        varchar full_name
+        varchar phone
+        varchar email
+        text address
+        text notes
+        varchar source
         decimal total_spending
-        int user_id FK
+        datetime created_at
+        datetime updated_at
+        bigint user_id FK
+        bigint created_by_id FK
+        bigint updated_by_id FK
     }
 
     MEASUREMENT {
-        int id PK
-        string measurement_id UK
+        integer id PK
+        varchar measurement_id UK
         date measurement_date
         decimal chest_circumference
         decimal waist_circumference
         decimal hip_circumference
-        int customer_id FK
-        int order_id FK
+        decimal shoulder_width
+        decimal sleeve_length
+        decimal arm_circumference
+        decimal neck_circumference
+        decimal garment_length
+        decimal skirt_trouser_length
+        text notes
+        datetime created_at
+        datetime updated_at
+        bigint customer_id FK
+        bigint order_id FK
+        bigint created_by_id FK
+        bigint updated_by_id FK
     }
 
     ORDER ||--o{ ORDER_STATUS_HISTORY : "riwayat status"
@@ -67,26 +96,33 @@ erDiagram
     ORDER ||--o{ MEASUREMENT : "terkait ukuran (opsional)"
 
     ORDER {
-        int id PK
-        string order_number UK
+        integer id PK
+        varchar order_number UK
         datetime order_date
         date required_date
-        string status
+        varchar status
         text description
         decimal total_amount
         decimal dp_amount
-        int customer_id FK
-        int cashier_id FK
-        int designer_id FK
+        text notes
+        datetime created_at
+        datetime updated_at
+        bigint customer_id FK
+        bigint cashier_id FK
+        bigint designer_id FK
+        bigint created_by_id FK
+        bigint updated_by_id FK
     }
 
     ORDER_STATUS_HISTORY {
-        int id PK
-        string status
+        integer id PK
+        varchar status
         datetime changed_at
         text notes
-        int order_id FK
-        int changed_by_id FK
+        datetime created_at
+        datetime updated_at
+        bigint order_id FK
+        bigint changed_by_id FK
     }
 
     CATEGORY ||--o{ PRODUCT : "mengelompokkan"
@@ -98,101 +134,136 @@ erDiagram
     BARCODE }o--|| BARCODE : "diregenerate dari (self-ref)"
 
     CATEGORY {
-        int id PK
-        string name UK
-        string slug
-        string description
+        integer id PK
+        varchar name UK
+        varchar slug UK
+        text description
+        datetime created_at
+        datetime updated_at
     }
 
     BRAND {
-        int id PK
-        string name UK
-        string slug
-        string description
+        integer id PK
+        varchar name UK
+        varchar slug UK
+        text description
+        datetime created_at
+        datetime updated_at
     }
 
     PRODUCT {
-        int id PK
-        string sku UK
-        string name
-        string source
-        string status
-        decimal selling_price
+        integer id PK
+        varchar sku UK
+        varchar name
+        text description
+        varchar source
+        varchar status
         decimal purchase_price
-        int min_stock
-        int category_id FK
-        int brand_id FK
-        int supplier_id FK
+        decimal selling_price
+        integer min_stock
+        varchar image
+        datetime created_at
+        datetime updated_at
+        bigint category_id FK
+        bigint brand_id FK
+        bigint supplier_id FK
     }
 
     PRODUCT_VARIANT {
-        int id PK
-        string sku UK
-        string barcode
-        string size
-        string color
-        int stock_quantity
-        int product_id FK
+        integer id PK
+        varchar sku UK
+        varchar barcode UK
+        varchar size
+        varchar color
+        integer stock_quantity
+        decimal selling_price
+        decimal purchase_price
+        boolean is_active
+        datetime created_at
+        datetime updated_at
+        bigint product_id FK
     }
 
     BARCODE {
-        int id PK
-        string barcode_value UK
-        string format
+        integer id PK
+        varchar barcode_value UK
+        varchar format
         boolean is_active
-        int product_variant_id FK
-        int regenerated_from_id FK
+        datetime created_at
+        datetime updated_at
+        bigint product_variant_id FK
+        bigint regenerated_from_id FK
     }
 
     SUPPLIER ||--o{ MATERIAL : "mengasokkan bahan (opsional)"
+    SUPPLIER ||--o{ PRODUCT : "mengasokkan produk (opsional)"
 
     SUPPLIER {
-        int id PK
-        string supplier_id UK
-        string name
-        string contact_person
-        string phone
-        string email
-        string address
-        string supplier_type
+        integer id PK
+        varchar supplier_id UK
+        varchar name
+        varchar contact_person
+        varchar phone
+        varchar email
+        text address
+        varchar supplier_type
+        text notes
+        datetime created_at
+        datetime updated_at
+        bigint created_by_id FK
+        bigint updated_by_id FK
     }
 
     TRANSACTION ||--o{ PAYMENT : "pembayaran"
     TRANSACTION ||--o{ TRANSACTION_ITEM : "item transaksi"
 
     TRANSACTION {
-        int id PK
-        string transaction_number UK
+        integer id PK
+        varchar transaction_number UK
         datetime transaction_date
-        string status
-        string payment_status
+        varchar status
+        varchar payment_status
+        boolean stock_deducted
         decimal subtotal
         decimal discount_amount
         decimal grand_total
-        int customer_id FK
-        int cashier_id FK
+        text notes
+        datetime created_at
+        datetime updated_at
+        bigint customer_id FK
+        bigint cashier_id FK
+        bigint created_by_id FK
+        bigint updated_by_id FK
     }
 
     TRANSACTION_ITEM {
-        int id PK
-        int quantity
+        integer id PK
+        integer quantity
         decimal unit_price
         decimal discount
         decimal total
-        int transaction_id FK
-        int product_variant_id FK
+        datetime created_at
+        datetime updated_at
+        bigint transaction_id FK
+        bigint product_variant_id FK
     }
 
     PAYMENT {
-        int id PK
-        string payment_type
-        string method
-        string status
+        integer id PK
+        varchar payment_type
+        varchar method
+        varchar status
         decimal amount
         date due_date
         datetime confirmed_at
-        int transaction_id FK
-        int confirmed_by_id FK
+        varchar payment_proof
+        text notes
+        datetime created_at
+        datetime updated_at
+        bigint transaction_id FK
+        bigint confirmed_by_id FK
+        bigint created_by_id FK
+        bigint updated_by_id FK
     }
 
     MATERIAL ||--o{ MATERIAL_REQUEST : "permintaan bahan"
@@ -202,26 +273,35 @@ erDiagram
     MATERIAL }o--o{ STOCK_MOVEMENT : "stok bahan baku (via ContentType)"
 
     MATERIAL {
-        int id PK
-        string material_id UK
-        string name
-        string category
-        string unit
+        integer id PK
+        varchar material_id UK
+        varchar name
+        varchar category
+        varchar unit
         decimal stock_quantity
         decimal min_stock
         decimal purchase_price
-        int supplier_id FK
+        text notes
+        datetime created_at
+        datetime updated_at
+        bigint supplier_id FK
+        bigint created_by_id FK
+        bigint updated_by_id FK
     }
 
     STOCK_MOVEMENT {
-        int id PK
-        string movement_type
+        integer id PK
+        varchar movement_type
         decimal quantity
         decimal previous_stock
         decimal new_stock
-        int content_type_id FK
-        int object_id
-        int user_id FK
+        varchar reference
+        text notes
+        datetime created_at
+        datetime updated_at
+        bigint content_type_id FK
+        integer object_id
+        bigint user_id FK
     }
 
     PRODUCTION ||--o{ MATERIAL_REQUEST : "permintaan bahan"
@@ -229,77 +309,145 @@ erDiagram
     MATERIAL_REQUEST ||--o{ MATERIAL_USAGE : "realisasi pemakaian"
 
     PRODUCTION {
-        int id PK
-        string production_id UK
+        integer id PK
+        varchar production_id UK
         date start_date
         date estimated_completion
         date actual_completion
-        int progress
-        string status
-        int order_id FK
-        int designer_id FK
+        integer progress
+        varchar status
+        text notes
+        datetime created_at
+        datetime updated_at
+        bigint order_id FK
+        bigint designer_id FK
+        bigint created_by_id FK
+        bigint updated_by_id FK
     }
 
     MATERIAL_REQUEST {
-        int id PK
-        string request_id UK
-        string status
+        integer id PK
+        varchar request_id UK
+        varchar status
         decimal quantity
-        int production_id FK
-        int material_id FK
-        int requested_by_id FK
-        int approved_by_id FK
+        text notes
+        datetime created_at
+        datetime updated_at
+        bigint production_id FK
+        bigint material_id FK
+        bigint requested_by_id FK
+        bigint approved_by_id FK
+        bigint created_by_id FK
+        bigint updated_by_id FK
     }
 
     MATERIAL_USAGE {
-        int id PK
-        string usage_id UK
+        integer id PK
+        varchar usage_id UK
         decimal quantity_used
         datetime used_at
-        int production_id FK
-        int material_request_id FK
-        int material_id FK
-        int used_by_id FK
+        text notes
+        datetime created_at
+        datetime updated_at
+        bigint production_id FK
+        bigint material_request_id FK
+        bigint material_id FK
+        bigint used_by_id FK
+        bigint created_by_id FK
+        bigint updated_by_id FK
     }
 
     FITTING {
-        int id PK
-        string fitting_id UK
+        integer id PK
+        varchar fitting_id UK
         datetime scheduled_date
-        string status
-        int order_id FK
-        int customer_id FK
+        datetime fitting_date
+        text results
+        text alterations_required
+        varchar documentation
+        varchar status
+        datetime created_at
+        datetime updated_at
+        bigint order_id FK
+        bigint customer_id FK
+        bigint created_by_id FK
+        bigint updated_by_id FK
     }
 
     QUALITY_CONTROL {
-        int id PK
-        string qc_id UK
-        string status
+        integer id PK
+        varchar qc_id UK
+        boolean stitching_quality
+        boolean size_accuracy
+        boolean fabric_quality
+        boolean color_consistency
+        boolean design_conformity
+        boolean cleanliness
+        boolean final_appearance
+        varchar status
         datetime qc_date
-        int order_id FK
-        int qc_by_id FK
+        text notes
+        datetime created_at
+        datetime updated_at
+        bigint order_id FK
+        bigint qc_by_id FK
+        bigint created_by_id FK
+        bigint updated_by_id FK
     }
 
     DESIGN {
-        int id PK
-        string design_id UK
-        string name
-        string category
-        string status
-        int version
-        int order_id FK
-        int designer_id FK
+        integer id PK
+        varchar design_id UK
+        varchar name
+        varchar category
+        varchar sketch
+        varchar customer_reference
+        varchar fabric
+        varchar color
+        text style_description
+        integer version
+        varchar status
+        decimal estimated_cost
+        integer estimated_duration_days
+        text notes
+        datetime created_at
+        datetime updated_at
+        bigint order_id FK
+        bigint designer_id FK
+        bigint created_by_id FK
+        bigint updated_by_id FK
     }
 
     DESIGN_VERSION {
-        int id PK
-        int version_number
-        int design_id FK
-        int created_by_id FK
+        integer id PK
+        integer version_number
+        varchar sketch
+        text notes
+        datetime created_at
+        datetime updated_at
+        bigint design_id FK
+        bigint created_by_id FK
     }
 
     DJANGO_CONTENT_TYPE {
-        int id PK
-        string app_label
-        string model
+        integer id PK
+        varchar app_label
+        varchar model
+    }
+
+    DJANGO_ADMIN_LOG {
+        integer id PK
+        text object_id
+        varchar object_repr
+        smallint action_flag
+        text change_message
+        datetime action_time
+        bigint content_type_id FK
+        bigint user_id FK
+    }
+
+    DJANGO_SESSION {
+        varchar session_key PK
+        text session_data
+        datetime expire_date
     }

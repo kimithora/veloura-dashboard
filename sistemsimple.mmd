@@ -1,0 +1,74 @@
+%%{init: {"flowchart": {"curve": "linear", "nodeSpacing": 48, "rankSpacing": 72, "diagramPadding": 24}}}%%
+flowchart TB
+    judul["VELOURA — Alur Sederhana"]
+    guide["Satu layar, dua alur bisnis utama: penjualan retail (POS) dan custom order."]
+
+    subgraph MASUK["Autentikasi"]
+        direction TB
+        login["Login staf"]
+        role{"Role?"}
+        admin["Dashboard ADMIN"]
+        cashier["Dashboard CASHIER"]
+        designer["Dashboard DESIGNER"]
+        login --> role
+        role -- "ADMIN" --> admin
+        role -- "CASHIER" --> cashier
+        role -- "DESIGNER" --> designer
+    end
+
+    subgraph RETAIL["1 · Penjualan Retail (POS)"]
+        direction TB
+        scan["Scan barcode produk"]
+        cart["Masukkan ke keranjang"]
+        checkout["Checkout → transaksi PENDING"]
+        bayar["Catat pembayaran (opsional)"]
+        konfirm["Konfirmasi pembayaran"]
+        stok["Stok berkurang + ledger SALES"]
+        lunas["Transaksi PAID / COMPLETED"]
+        selesai["Cetak invoice PDF"]
+        scan --> cart --> checkout --> bayar --> konfirm --> stok --> lunas --> selesai
+    end
+
+    subgraph CUSTOM["2 · Custom Order (DESIGNER)"]
+        direction TB
+        member["Pilih customer (daftar member oleh ADMIN/CASHIER)"]
+        order["Buat order ORD-... → status RECEIVED"]
+        ukur["Measurement: ukuran badan"]
+        desain["Design → ajukan approval"]
+        approval{"Disetujui?"}
+        revisi["Ditolak → design direvisi lalu diajukan ulang (pengulangan, tanpa panah balik)"]
+        bahan["Material prep: request bahan → fulfill (stok berkurang)"]
+        produksi["Produksi: progress 0–100%"]
+        fitting["Fitting sesi"]
+        qc["Quality control: lolos / revisi"]
+        delivered["COMPLETED → DELIVERED"]
+        member --> order --> ukur --> desain --> approval
+        approval -- "ya" --> bahan
+        approval -- "tidak" --> revisi
+        bahan --> produksi --> fitting --> qc --> delivered
+    end
+
+    subgraph PEMBAYARAN["Pembayaran & Stok (bersama)"]
+        direction TB
+        catat["Payment PENDING"]
+        konfirm2{"Cukup lunas?"}
+        sebagian["Sebagian → PARTIALLY_PAID"]
+        penuh["Penuh → PAID, stok dipotong"]
+        void["Void/refund → status dihitung ulang, stok dikembalikan bila perlu"]
+        catat --> konfirm2
+        konfirm2 -- "belum" --> sebagian
+        konfirm2 -- "ya" --> penuh
+        penuh --> void
+        sebagian --> void
+    end
+
+    %% Hubungan antar alur
+    admin --> scan
+    cashier --> scan
+    designer --> member
+    admin --> member
+    cashier --> member
+    checkout --> catat
+    bayar --> catat
+    lunas --> void
+    delivered --> void

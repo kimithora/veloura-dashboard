@@ -1,8 +1,9 @@
 # Audit Debugging VELOURA — Modul Designer / Custom Order
 
 **Tanggal pemeriksaan:** 17 November 2026  
-**Cakupan:** semua view, model, form, template, route, dan JavaScript yang terkait dengan role DESIGNER dan alur Custom Order (Order → Design → Production → Fitting → QC → Measurement).  
-**Status:** semua temuan di bawah telah **DIPERBAIKI (Fixed)** dan diverifikasi melalui smoke test (12 skenario, semua lolos).
+**Pembaruan terakhir:** 19 November 2026  
+**Cakupan:** semua view, model, form, template, route, dan JavaScript yang terkait dengan role DESIGNER dan alur Custom Order (Order → Design → Production → Fitting → QC → Measurement), plus pembayaran custom order.  
+**Status:** semua temuan di bawah telah **DIPERBAIKI (Fixed)** dan diverifikasi melalui smoke test (12 skenario, semua lolos). Database dikosongkan untuk demo pada 19 Nov 2026 (lihat bagian Catatan).
 
 ---
 
@@ -34,7 +35,7 @@
 | D-P1-5 | `OrderUpdateView.get_queryset()` dan `OrderDetailView.get_queryset()` filter `designer=self.request.user` — order yang belum di-assign (`designer=None`) tidak muncul untuk designer. | `orders/views.py` | Diubah menjadi `models.Q(designer=self.request.user) \| models.Q(designer__isnull=True)` sehingga designer dapat melihat dan mengklaim order yang belum punya designer. | **Fixed** |
 | D-P1-6 | `update_order_status` menolak designer pada order dengan `designer_id = None`. | `orders/views.py` | Ditambahkan logika self-assign: jika `designer_id is None`, designer yang update otomatis menjadi penanggung jawab order (`order.designer = request.user`). | **Fixed** |
 | D-P1-7 | `OrderForm` field `designer` menampilkan semua user, bukan hanya designer. | `orders/forms.py` | Ditambahkan `__init__` yang filter queryset `designer` hanya ke `User.objects.filter(role__code='DESIGNER')`, dengan `empty_label`. | **Fixed** |
-| D-P1-8 | Designer tidak bisa membuat order baru dari dashboard (tidak ada tombol Add Order). | `templates/core/designer_dashboard.html` | Ditambahkan tombol "Add New Order" → `orders:order_add` di card Custom Orders. | **Fixed** |
+| D-P1-8 | Designer tidak bisa membuat order baru dari dashboard (tidak ada tombol Add Order). | `templates/core/designer_dashboard.html` | Ditambahkan tombol "Add New Order" → `orders:order_add` di card Custom Orders. **(Dikembalikan lagi pada 19 Nov 2026 — lihat bagian "Pembaruan 19 Nov 2026": tombol dihapus, designer melanjutkan tahapan via detail order.)** | **Fixed → lalu diubah** |
 
 ### P2 — Peningkatan UI / flow / kestabilan
 
@@ -88,8 +89,8 @@
 6. `templates/catalog/form.html` — non_field_errors, hidden field handling.
 7. `templates/core/designer_dashboard.html` — hapus link duplikat, tambah tombol Add Order.
 8. `templates/core/cashier_dashboard.html` — tambah kartu "Custom Order" + tombol Add Order di Quick Actions; tambah kartu "Add Member" → customers:customer_add.
-9. `templates/core/designer_dashboard.html` — tambah kartu "Add Member" → customers:customer_add.
-10. `customers/views.py` — CustomerCreateView required_roles tambah 'DESIGNER'.
+9. `templates/core/designer_dashboard.html` — tambah kartu "Add Member" → customers:customer_add. **(Dihapus lagi 19 Nov 2026.)**
+10. `customers/views.py` — CustomerCreateView required_roles tambah 'DESIGNER'. **(Dikembalikan ke ADMIN/CASHIER saja pada 19 Nov 2026.)**
 11. `customers/models.py` — Customer.save() generate customer_id unik (loop hingga tidak collision).
 12. `customers/forms.py` — CustomerForm hapus field 'user' (member baru tidak perlu linked user account; tidak ada dropdown admin/cashier/designer).
 
@@ -98,14 +99,111 @@
 ## Fitur Baru — Member / Customer Registration (Konsep Luxury)
 
 Sebelum membuat pesanan custom order, pelanggan harus didaftarkan sebagai member terlebih dahulu:
-- **Cashier dashboard**: kartu "Add Member" → daftar pelanggan baru
-- **Designer dashboard**: kartu "Add Member" → daftar pelanggan baru
+- **Cashier dashboard**: kartu "Add Member" → daftar pelanggan baru (masih ada)
+- **Designer dashboard**: kartu "Add Member" **sudah dihapus pada 19 Nov 2026** — pembuatan customer khusus ADMIN/CASHIER (lihat bagian "Pembaruan 19 Nov 2026")
 - Setelah member tersedia, buat custom order dan pilih customer dari dropdown (order sudah terikat ke member)
 - `customer_id` otomatis generate (CUST-0001, CUST-0002, dst.) dan tidak akan bentrok (UNIQUE constraint)
 - Form member hanya berisi: nama, telepon, email, alamat, sumber, catatan — **tidak ada dropdown user/admin/cashier/designer**
 
+---
+
+## Fix — Bug Logika / Debugging (Prioritas Desainer)
+
+Hasil smoke test penuh (alur designer end-to-end): order → measurement → design → production → material request → material usage → fitting → QC, semuanya berhasil (HTTP 200), termasuk klaim order/production yang belum punya designer. Designer tidak bisa QC/design/production/etc. untuk order designer lain (403).
+
+| ID | Masalah | File | Perbaikan | Status |
+|----|---------|------|-----------|--------|
+| B-1 | `AuditMixin.created_by`/`updated_by` tidak pernah diisi di seluruh create/update → audit log selalu NULL | semua view bisnis | `created_by`/`updated_by` di-set di semua form_valid designer flow (order, design, production, material request/usage, QC, fitting, measurement, customer) dan `updated_by` pada semua AJAX update | **Fixed** |
+| B-2 | `Cashier` tidak punya akses | `orders/views.py` | sudah diverifikasi (OrderCreateView.required_roles termasuk CASHIER) — lihat audit cashier section | **Fixed** |
+| B-3 | Designer bisa membuat Design/Production/QC/Fitting/Measurement untuk order desainer lain | `designs/views.py`, `production/views.py`, `customers/views.py` | `dispatch` menolak `order_pk` yang `designer_id`-nya bukan milik designer yang login (kecuali unassigned) → `handle_no_permission()` / 403; `order.queryset` difilter ke `Q(designer=user) | Q(designer__isnull=True)` | **Fixed** |
+| B-4 | Designer melihat/bisa merebut order desainer lain via `?order=` karena queryset dropdown menampilkan SEMUA order | semua view Create | queryset `order` disembunyikan/difilter ke `Q(designer=user) | Q(designer__isnull=True)` | **Fixed** |
+| B-5 | Cashier membuat design/production → `designer` otomatis = cashier (salah: cashier bukan desainer) | `designs/views.py`, `production/views.py` | `form_valid` hanya set `designer=self.request.user` **jika role DESIGNER**; selain itu gunakan pilihan form | **Fixed** |
+| B-6 | Field `designer` di dropdown menampilkan SEMUA user (admin, cashier, pelanggan, dll.) | `orders/forms.py`, `designs/forms.py`, `production/forms.py` | queryset di-filter hanya `role__code='DESIGNER'` | **Fixed** |
+| B-7 | `DesignListView`/`MeasurementListView` search `.filter(a) | .filter(b)` → duplikat hasil & tidak efisien | `designs/views.py`, `customers/views.py` | `Q(a) \| Q(b) \| Q(order__order_number__icontains=q)` (design juga bisa dicari by nomor order) | **Fixed** |
+| B-8 | Designer tidak bisa melihat Production/Order/Design yang belum punya desainer (hanya bisa lihat yang di-assign) → order "menggantung" tidak bisa diklaim | `orders/views.py`, `designs/views.py`, `production/views.py` | filter queryset designer → `Q(designer=user) \| Q(designer__isnull=True)` | **Fixed** |
+| B-9 | Designer tidak bisa mengklaim order/production/design/material-request yang belum ada desainernya — harus ditunjuk admin | `orders/views.py`, `production/views.py`, `designs/views.py`, `production/views.py` | `update_order_status`/`production_update`/`update_design_status`/`MaterialUsageCreateView`/`MaterialRequestCreateView`: jika desainer NULL → self-assign otomatis saat update pertama; jika milik desainer lain → 403 | **Fixed** |
+| B-10 | Tombol "Record Usage"/"Request Material" di production_detail membuka form tanpa konteks produksi → designer harus pilih manual production (error / salah pilih) | `production/views.py`, `templates/production/production_detail.html` | `MaterialUsageCreateView`/`MaterialRequestCreateView` mendukung `?production=<pk>` (production tersembunyi + terisi otomatis); tombol di detail produksi mengarah ke `?production={{ production.pk }}` | **Fixed** |
+| B-11 | `MaterialUsage`/`MaterialRequest` untuk production desainer lain masih bisa dibuat via dropdown | `production/views.py` | queryset production difilter designer: `Q(designer=user) \| Q(designer__isnull=True)`; form_valid: defense-in-depth ownership check; `MaterialRequestForm`/`MaterialUsageCreateView` juga membatasi `material_request` ke production yang sama | **Fixed** |
+| B-12 | `MaterialRequestListView`/`QualityControlListView`/`FittingListView` hanya menampilkan data milik designer lengkap — order/production unassigned tidak tampil sehingga tidak bisa diklaim | `production/views.py` | filter → `Q(...designer=user) \| Q(...designer__isnull=True)` | **Fixed** |
+| B-13 | `MaterialRequestAction`/`MaterialUsageCreateView`/`production_update`/`update_design_status` tidak menulis `updated_by` | `production/views.py`, `designs/views.py` | `updated_by=self.request.user` di setiap save yang mengubah status/progress/design | **Fixed** |
+| B-14 | `design_detail.html` tombol "Link Measurement" tanpa konteks order → measurement tidak terkait ke order | `templates/designs/design_detail.html` | tombol sekarang mengarah ke `customers:measurement_add?order={{ design.order.pk }}` | **Fixed** |
+| B-15 | `orders/order_detail.html` tombol "Edit Order" tidak ada; list orders tidak punya tombol edit | `orders/views.py`, `templates/orders/order_detail.html` | `edit_url` ditambahkan ke list + detail order (orders:order_edit) | **Fixed** |
+| B-16 | `DesignListView`/`OrderListView` tidak punya tombol Edit di list (hanya detail) | `designs/views.py`, `orders/views.py`, `templates/catalog/list.html` | `edit_url` ditambahkan | **Fixed** |
+| B-17 | AJAX di `design_detail.html` & `production_detail.html` pakai URL hardcoded | templates | diubah ke `{% url "designs:update_design_status" pk=design.pk %}` dan `{% url "production:production_update" pk=production.pk %}` | **Fixed** |
+| B-18 | `production_update` menolak designer pada production belum di-assign | `production/views.py` | designer boleh meng-update jika production.designer NULL (self-assign) atau milik sendiri | **Fixed** |
+| B-19 | `DesignCreateView` dispatch: designer bisa buat design via `?order=` untuk order designer lain | `designs/views.py` | ownership check sebelum super().dispatch | **Fixed** |
+| B-20 | `DesignDetailView`/`DesignListView` hanya tampilkan design milik designer — design unassigned (dibuat cashier) hilang dari designer | `designs/views.py` | filter → `Q(designer=user) \| Q(designer__isnull=True)` | **Fixed** |
+
+## Fix — UI Designer: hapus tombol Add, production klik ke form, tabel Customer Orders
+
+| ID | Masalah | File | Perbaikan | Status |
+|----|---------|------|-----------|--------|
+| U-1 | Tombol "Add" di semua list page designer tidak berguna | `designs/views.py`, `production/views.py`, `orders/views.py`, `customers/views.py` | `create_url`/`create_label` hanya diisi jika user **bukan** role DESIGNER. Tombol Add hilang total dari halaman designer | **Fixed** |
+| U-2 | Kolom Production ID di list production tidak clickable | `production/views.py` | Production ID sekarang link ke `production:production_detail` (klik → form update progress) | **Fixed** |
+| U-3 | Tidak ada tabel detail pelanggan + pesanan + progress | `customers/views.py`, `customers/urls.py`, `templates/customers/customer_orders.html` | View `CustomerOrdersTableView` (`/customers/orders/`) menampilkan: ID Customer, Nama, No. Pesanan, Status Order, Progress Produksi (progress bar), Status Produksi, Desain, Deadline. Search by customer/order. Sidebar designer & cashier ditambah link "Customer Orders" | **Fixed** |
+| U-4 | Detail order tombol lanjutkan tahap custom order tetap terjaga | `templates/orders/order_detail.html` | Tetap ada (Buat Design, Production, QC, Fitting, Measurement) karena alur custom order memerlukannya | **OK** |
+
+Smoke test "Designer UI fixes" (login designer):
+- `/customers/orders/` → 200, tabel tampil (ID, Nama, Pesanan, Progress bar)
+- Semua list page designer (design/production/material request/qc/fitting/orders/measurements/customers) → **tidak ada tombol Add**
+- Production list → Production ID clickable ke `production_detail`; detail punya form "Update Progress"
+- Order detail → tombol lanjutkan tahap custom order masih ada
+
+---
+
+## Fitur Baru — Pembayaran Custom Order (DP / Cicilan / Lunas)
+
+Sebelumnya pembayaran **hanya ada untuk transaksi POS** (`Payment` → `Transaction`). Belum ada pembayaran untuk custom order. Sekarang sudah ada modul `OrderPayment` yang terintegrasi ke detail order.
+
+| ID | Fitur | File | Detail | Status |
+|----|-------|------|--------|--------|
+| P-1 | Model `OrderPayment` | `payments/models.py`, `payments/migrations/0003_orderpayment.py` | `OrderPayment` (FK → `Order`): amount, payment_type (FULL/DP/INSTALLMENT), method (CASH/BANK_TRANSFER/QRIS), status (PENDING/CONFIRMED/REFUNDED/FAILED), payment_proof, due_date (jatuh tempo cicilan/DP), confirmed_at, confirmed_by, notes + audit fields | **Fixed** |
+| P-2 | Record pembayaran custom order | `payments/views.py` `record_order_payment`, `payments/urls.py`, `templates/orders/order_detail.html` | Cashier/admin catat pembayaran via modal "Catat Pembayaran" di halaman detail order (jumlah, tipe, metode, jatuh tempo, bukti, catatan). Status awal PENDING | **Fixed** |
+| P-3 | Konfirmasi pembayaran | `payments/views.py` `confirm_order_payment` | Row lock + atomic; cashier/admin konfirmasi → status CONFIRMED, `confirmed_at`/`confirmed_by` terisi; **`order.dp_amount` otomatis disinkronkan** dengan total pembayaran CONFIRMED | **Fixed** |
+| P-4 | Void / Refund pembayaran | `payments/views.py` `void_order_payment` | PENDING → FAILED; CONFIRMED → REFUNDED; `dp_amount` otomatis dihitung ulang | **Fixed** |
+| P-5 | Halaman list pembayaran custom order | `payments/views.py` `order_payment_list`, `templates/payments/order_payment_list.html`, `payments/urls.py` | `/payments/orders/` — tabel pembayaran custom order dengan filter (search no. order / nama pelanggan / confirmed_by, status, metode, tipe, tanggal) + summary cards (total dikonfirmasi, menunggu konfirmasi, jumlah pembayaran). Aksi: konfirmasi / void / refund via AJAX | **Fixed** |
+| P-6 | Section Payments di detail order | `templates/orders/order_detail.html` | Ringkasan (Total Pesanan, Dibayar DP, Sisa Tagihan) + tabel pembayaran order + tombol "Catat Pembayaran" (ADMIN/CASHIER only) + tombol konfirmasi/void per baris (ADMIN/CASHIER only) | **Fixed** |
+| P-7 | Sidebar link | `templates/core/cashier_dashboard.html`, `templates/core/admin_dashboard.html` | Link "Pembayaran Custom Order" → `payments:order_payment_list` | **Fixed** |
+| P-8 | Akses | `payments/views.py` | Record/konfirmasi/void/list pembayaran custom order **hanya ADMIN & CASHIER**. Designer: redirect/403 | **Fixed** |
+| P-9 | Sinkronisasi `dp_amount` otomatis | `payments/views.py` | Setiap confirm/void, `order.dp_amount` dihitung ulang = SUM(amount CONFIRMED). `order.remaining_balance` (total − dp) otomatis akurat | **Fixed** |
+
+Alur baru:
+1. Cashier buka detail custom order → lihat **Payments**: Total, Dibayar (DP), Sisa Tagihan.
+2. Klik **Catat Pembayaran** → isi jumlah, tipe (DP/cicilan/lunas), metode → status PENDING.
+3. Cashier/admin klik tombol konfirmasi (✓) → status CONFIRMED → **DP otomatis masuk ke order** dan Sisa Tagihan berkurang.
+4. Refund (×) → status REFUNDED → DP otomatis dikurangi.
+5. Daftar semua pembayaran custom order di **/payments/orders/** (filter & search).
+
+Smoke test "Custom Order Payment": record DP 300rb → confirm → dp=300rb ✅; record 700rb → confirm → dp=1jt ✅; refund 300rb → dp=700rb ✅; designer tidak bisa record (403) ✅; designer tidak bisa lihat list (302) ✅.
+
+---
+
+## Pembaruan 19 November 2026
+
+### Perubahan akses/UI designer & customer (working tree, belum di-commit)
+| ID | Perubahan | File | Detail |
+|----|-----------|------|--------|
+| N-1 | Tombol "Add New Order" dihapus dari dashboard designer | `templates/core/designer_dashboard.html` | Card Custom Orders kini hanya berisi "Manage Orders". Designer melanjutkan tahapan lewat detail order (panel Langkah Selanjutnya). |
+| N-2 | Kartu "Add Member" dihapus dari dashboard designer | `templates/core/designer_dashboard.html` | Designer tidak lagi mendaftarkan customer. |
+| N-3 | Pembuatan customer dibatasi ke ADMIN/CASHIER | `customers/views.py` | `CustomerCreateView.required_roles = ('ADMIN', 'CASHIER')` (sebelumnya termasuk DESIGNER). List page juga menyembunyikan tombol Add untuk designer. |
+| N-4 | Sembunyikan tombol Add di semua list page untuk designer | `orders/views.py`, `designs/views.py`, `production/views.py`, `customers/views.py` | `create_url`/`create_label` hanya diisi jika bukan role DESIGNER. |
+| N-5 | Tabel Customer Orders | `customers/views.py`, `customers/urls.py`, `templates/customers/customer_orders.html` | Route `/customers/orders/` menampilkan customer + pesanan + progress produksi; link di sidebar admin/cashier/designer. |
+| N-6 | Pembayaran custom order (OrderPayment) | `payments/models.py`, `payments/views.py`, `payments/urls.py`, `payments/forms.py`, `payments/migrations/0003_orderpayment.py`, `templates/orders/order_detail.html`, `templates/payments/order_payment_list.html` | Model + record/confirm/void + list `/payments/orders/` + section Payments di detail order; `dp_amount` order tersinkron otomatis. Akses ADMIN/CASHIER. |
+
+### Kondisi database
+- Seluruh data transaksional dihapus untuk presentasi demo (customer, produk, transaksi, order, design, produksi, pembayaran, ledger, sesi, admin log).
+- Tersisa: 3 user (`admin`, `cashier`, `designer`), 3 role, dan tabel framework Django.
+- Backup: `db_backup_2026119_035957.sqlite3`.
+- `python manage.py check` tetap lolos setelah pembersihan; login ketiga user terverifikasi.
+
+---
+
 ## Catatan
 
+- Seluruh bug di atas diuji via smoke test manual end-to-end (login sebagai `designer` & `cashier`; buat order → measurement → design → production → request → usage → fitting → QC). Semua HTTP 200 beserta status DB (`created_by`/`updated_by`, `designer` otomatis, klaim unassigned). Check `python manage.py check` lolos.
+- Designer berbeda tidak bisa saling mengakses order/qc/design masing-masing → 403 diverifikasi.
+- Tes data (`Full smoke order`, dll.) sudah dibersihkan dari database; seluruh data bisnis dikosongkan lagi pada 19 Nov 2026 untuk demo.
 - Masih belum ada test otomatis (0 test). Disarankan menambahkan `TestCase` untuk alur designer dan cashier (create order, claim order, downstream create) agar tidak regresi di masa depan.
-- `analytics/`, `notifications/`, `documents/` masih placeholder (lihat audit.md bagian lama dan progress.md).
+- `analytics/`, `notifications/`, `documents/` masih placeholder (lihat progress.md).
+- Perubahan N-1 s/d N-6 masih berupa working tree yang belum di-commit.
 

@@ -1,0 +1,390 @@
+%%{init: {"flowchart": {"curve": "linear", "nodeSpacing": 64, "rankSpacing": 96, "diagramPadding": 28}}}%%
+flowchart TB
+    judul["VELOURA — alur aplikasi berdasarkan implementasi saat ini (19 November 2026)"]
+    guide["Cara baca: panah menunjukkan alur maju antarmodul; pengulangan dijelaskan sebagai catatan teks, bukan panah balik, agar diagram tidak memiliki loop."]
+    apps["14 app Django terdaftar: core, accounts, customers, suppliers, catalog, inventory, sales, payments, orders, designs, production, documents, analytics, notifications."]
+    judul --> guide --> apps
+    apps --> runtime
+
+    subgraph PLATFORM["01 · Runtime, request, autentikasi"]
+        direction TB
+        runtime["Browser staf"]
+        request["Django request → config.urls → URL app → view → form/service → ORM"]
+        mw["Middleware berurutan: Security → Session → Common → CSRF → Authentication → Messages → Clickjacking → RoleRedirect"]
+        entry{"Request ke route apa?"}
+        homepage["GET / → core.dashboard: redirect berdasar role ke dashboard masing-masing"]
+        loginpage["GET /accounts/login/"]
+        loginpost["POST login: username dipangkas; password dipakai apa adanya"]
+        authenticated{"authenticate() menemukan user aktif?"}
+        sessioncreate["login(request, user) membuat sesi autentikasi"]
+        loginerror["Pesan invalid username/password; form login dirender ulang — percobaan dapat diulang oleh pengguna"]
+        alreadyin["Jika login page dibuka saat sudah login → redirect core.dashboard"]
+        register["/accounts/register/: registrasi publik dinonaktifkan; tampilkan pesan dan kembali ke login"]
+        logout["/accounts/logout/: wajib login; hapus sesi, beri pesan, redirect login"]
+        health["/health/: endpoint GET publik mengembalikan JSON status ok"]
+        admin["/admin/: Django Admin; akses mengandalkan is_staff/superuser, bukan role dashboard saja"]
+        routing["Request route lain diteruskan ke app sesuai prefix; file media dilayani dari MEDIA_ROOT pada konfigurasi yang mencantumkannya"]
+        runtime --> request --> mw --> entry
+        entry --> homepage
+        entry --> loginpage --> loginpost --> authenticated
+        authenticated -- "ya" --> sessioncreate --> homepage
+        authenticated -- "tidak" --> loginerror
+        loginpage --> alreadyin
+        entry --> register
+        entry --> logout
+        entry --> health
+        entry --> admin
+        entry --> routing
+    end
+
+    subgraph ACCESS["02 · Pengguna, role, dashboard, dan izin"]
+        direction TB
+        who["Setelah autentikasi: User kustom berbasis AbstractUser; username adalah identitas login; role FK boleh kosong"]
+        hasrole{"Kode role user?"}
+        adminhome["ADMIN dashboard"]
+        cashhome["CASHIER dashboard"]
+        designerhome["DESIGNER dashboard: kartu Design Management dan Custom Orders saja; tombol Add New Order dan Add Member sudah dihapus — designer melanjutkan tahapan lewat detail order"]
+        unknownrole["Tanpa role atau role tak dikenal / role kosong: core.dashboard mengembalikan halaman 403"]
+        adminstats["ADMIN statistik: total user, total produk, jumlah grand_total transaksi hari ini tanpa filter status, hitung low-stock variant aktif produk ACTIVE dengan stok <= min_stock"]
+        cashstats["CASHIER statistik: jumlah/nilai transaksi hari ini tanpa filter status, variant aktif berstok > 0, low-stock"]
+        designerstats["DESIGNER statistik: order aktif (MEASUREMENT s/d QC), design PENDING_APPROVAL, production IN_PROGRESS, QC PENDING"]
+        permissions["Pemeriksaan izin di backend: RoleRequiredMixin pada CBV; function view memakai login_required + cek has_role sendiri; decorator role_required untuk dashboard. Menu tersembunyi bukan pengganti izin backend."]
+        adminscope["ADMIN: pengelolaan user/role, produk/katalog, supplier/customer, bahan/ledger, transaksi/pembayaran, order dan produksi."]
+        cashscope["CASHIER: POS/penjualan/pembayaran, katalog, supplier/customer/member, bahan/ledger, serta akses operasional custom order."]
+        designerscope["DESIGNER: melihat daftar customer, measurement, order, design, production, fitting, QC; pembuatan customer kini khusus ADMIN/CASHIER; sejumlah queryset dibatasi pada objek yang ditugaskan."]
+        designerui["Sidebar designer: Dashboard, Designs, Custom Orders, Measurements, Production, Fittings, Quality Control."]
+        commonui["UI bersama: Bootstrap 5, CSS Veloura, Lucide, messages, CSRF, sidebar/responsive layout."]
+        dashboardfeatures["Pencarian global, profil lengkap, notifikasi in-app, analytics/reporting dan system settings bukan workflow aktif yang ditemukan."]
+        who --> hasrole
+        hasrole -- "ADMIN" --> adminhome --> adminstats --> adminscope
+        hasrole -- "CASHIER" --> cashhome --> cashstats --> cashscope
+        hasrole -- "DESIGNER" --> designerhome --> designerstats --> designerscope --> designerui
+        hasrole -- "kosong/lain" --> unknownrole
+        adminscope --> permissions
+        cashscope --> permissions
+        designerscope --> permissions
+        who --> commonui --> dashboardfeatures
+    end
+
+    subgraph MASTER["03 · Master data dan katalog produk"]
+        direction TB
+        actor["Akses umum: brand/category/product/variant umumnya ADMIN dan CASHIER untuk create/edit; batas list, delete, archive dapat berbeda."]
+        brands["Brand: nama dan slug; nama unik. List dapat dilihat ketiga role; create/edit ADMIN/CASHIER; delete ADMIN."]
+        categories["Category: nama dan slug; nama unik. List dapat dilihat ketiga role; create/edit ADMIN/CASHIER; delete ADMIN."]
+        supplier["Supplier: nama, kontak/alamat, tipe Direct Purchase atau Consignment, notes; ID SUP-...; list/create/edit ADMIN/CASHIER, delete ADMIN."]
+        customer["Customer: nama/kontak/alamat, source WALK_IN/ONLINE/REFERRAL, notes; ID CUST-... yang digenerate otomatis dan unik."]
+        customerroles["Izin customer: list ketiga role; create dan edit ADMIN/CASHIER; delete ADMIN. DESIGNER tidak dapat menambah customer."]
+        customerform["Form customer hanya berisi nama, telepon, email, alamat, sumber, catatan — field user dihapus; relasi opsional ke User tidak dipakai."]
+        product["Product: SKU unik, nama/deskripsi, Category wajib, Brand opsional, source VEL_ORIGINAL/THIRD_PURCHASED/THIRD_CONSIGNMENT, harga beli/jual, min_stock, gambar, DRAFT/ACTIVE/ARCHIVED."]
+        sourcecheck{"Produk third-party?"}
+        supplierrequired["Form mewajibkan supplier untuk THIRD_PURCHASED dan THIRD_CONSIGNMENT; VEL_ORIGINAL tidak memerlukan supplier."]
+        variants["Satu Product memiliki banyak ProductVariant."]
+        variantfields["Variant: SKU unik, size XS/S/M/L/XL/XXL/ONE_SIZE, color, harga jual override opsional, stock_quantity, is_active; kombinasi product+size+color unik."]
+        stockinitial["Stok awal yang diisi saat membuat variant tersimpan langsung; tidak membuat StockMovement."]
+        variantprice["Harga efektif variant: gunakan override jika ada; selain itu gunakan harga jual Product."]
+        productactions{"Aksi katalog?"}
+        archive["Archive product: status menjadi ARCHIVED; bukan penghapusan fisik."]
+        editvariant["Edit variant: bila nilai stok berubah, simpan variant lalu buat StockMovement ADJUSTMENT; keduanya tidak berada dalam transaksi atomik bersama."]
+        deletevariant["Delete variant hanya ADMIN; Product list/detail tersedia untuk ketiga role."]
+        actor --> brands
+        actor --> categories
+        actor --> supplier
+        actor --> customer --> customerroles --> customerform
+        supplier --> supplierrequired
+        brands --> product
+        categories --> product
+        product --> sourcecheck
+        sourcecheck -- "ya" --> supplierrequired --> variants
+        sourcecheck -- "tidak" --> variants
+        variants --> variantfields --> stockinitial
+        variantfields --> variantprice
+        product --> productactions
+        productactions -- "arsipkan (ADMIN)" --> archive
+        productactions -- "ubah variant" --> editvariant
+        productactions -- "hapus variant (ADMIN)" --> deletevariant
+    end
+
+    subgraph BARCODE["04 · Barcode dan label"]
+        direction TB
+        createvariant["Variant dibuat melalui katalog."]
+        barcodeprovided{"Barcode di form variant diisi?"}
+        generated["Kosong: generate kode 890 + 10 digit acak; buat row Barcode berformat Code 128 dan kaitkan ke variant."]
+        entered["Terisi: gunakan kode dari form; buat row Barcode berformat Code 128."]
+        uniqueness["Kode barcode/SKU memiliki batas unik pada model/form terkait."]
+        manual["ADMIN/CASHIER: set barcode manual unik dan masukkan jumlah stock-in."]
+        manualatomic["Operasi custom barcode atomic: update variant.barcode + buat row Barcode aktif + tambah stok + buat StockMovement PURCHASE."]
+        regenerate["ADMIN regenerate: ganti kode pada row Barcode yang sama dan variant.barcode; tidak membuat histori Barcode terpisah."]
+        output["ADMIN/CASHIER dapat membuat unduhan label PNG atau PDF; barcode Code 128, bersama SKU/kode; PDF juga memuat nama produk."]
+        createvariant --> barcodeprovided
+        barcodeprovided -- "tidak" --> generated --> uniqueness
+        barcodeprovided -- "ya" --> entered --> uniqueness
+        uniqueness --> output
+        uniqueness --> manual --> manualatomic --> output
+        uniqueness --> regenerate --> output
+    end
+
+    subgraph POS["05 · POS, session cart, dan pembuatan transaksi"]
+        direction TB
+        posaccess["Aktor UI: ADMIN/CASHIER. Cart disimpan pada session Django, bukan tabel cart."]
+        scan["Kasir memasukkan barcode atau memakai scanner USB keyboard-emulation; integrasi kamera tidak dipakai pada flow POS."]
+        lookup["GET barcode_lookup: login required; view tidak punya batasan role eksplisit. Cari ProductVariant dengan barcode."]
+        barcodefound{"Barcode ditemukan?"}
+        productactive{"Variant aktif dan Product berstatus ACTIVE?"}
+        lookuperror["Tidak ditemukan → JSON 404; nonaktif → JSON 400."]
+        lookupok["JSON berisi id, SKU, barcode, nama, size/color, harga efektif, stock, is_active."]
+        stockzero["Stok 0 tetap lolos lookup; UI menunjukkan Out of stock dan menonaktifkan tombol Add."]
+        add["POST cart_add: login + POST + ADMIN/CASHIER; variant/product harus aktif; quantity integer >= 1; validasi jumlah cart terhadap stok saat itu."]
+        addvalid{"Validasi add berhasil?"}
+        adderror["Kesalahan input/variant/stok → JSON error; cart tidak ditambah."]
+        cart["Session cart berisi variant, quantity dan unit_price yang disalin ketika ditambahkan."]
+        editcart["UI dapat tambah item, mengubah quantity (hapus lalu tambah), menghapus item, atau clear cart; halaman dimuat ulang untuk menampilkan perubahan. Tindakan ini dapat diulang sebelum checkout."]
+        checkout["POST checkout: login + POST + ADMIN/CASHIER; cart kosong ditolak."]
+        customerselect["Customer opsional. ID tidak ditemukan diubah menjadi null (walk-in). Catat notes dan cashier."]
+        discount["Diskon transaksi nominal/persen dihitung dari subtotal; persen diubah ke nominal lebih dulu; dibatasi ke rentang 0..subtotal."]
+        itemdiscount["Diskon per item dari session ditambahkan terpisah oleh service; jumlah akhir gabungan tidak dibatasi ulang."]
+        checkoutlimits["Harga, quantity, dan diskon item diambil dari session; checkout tidak mengecek ulang stok, variant aktif, harga terkini, atau diskon item."]
+        txcreate["Finalize dalam transaksi database atomic: Transaction + TransactionItem; nomor TRX-tanggal-urutan; status PENDING, payment UNPAID, stock_deducted=false."]
+        amountcheck{"Jumlah pembayaran POS > 0?"}
+        pendingpayment["Ya: buat Payment status PENDING; method dan payment_type dari form POS (tipe default FULL); bukti opsional."]
+        nopayment["Tidak: Payment tidak dibuat; transaksi tetap PENDING/UNPAID."]
+        success["Sukses: session cart dikosongkan; JSON berisi nomor, grand_total dan URL detail."]
+        posaccess --> scan --> lookup --> barcodefound
+        barcodefound -- "tidak" --> lookuperror
+        barcodefound -- "ya" --> productactive
+        productactive -- "tidak" --> lookuperror
+        productactive -- "ya" --> lookupok --> stockzero --> add
+        add --> addvalid
+        addvalid -- "tidak" --> adderror
+        addvalid -- "ya" --> cart --> editcart --> checkout
+        checkout --> customerselect --> discount --> itemdiscount --> checkoutlimits --> txcreate --> amountcheck
+        amountcheck -- "ya" --> pendingpayment --> success
+        amountcheck -- "tidak" --> nopayment --> success
+    end
+
+    subgraph PAYMENTS["06 · Pembayaran transaksi retail"]
+        direction TB
+        paymententry["Sumber Payment: dibuat saat checkout jika amount > 0, atau dicatat kemudian lewat record_payment."]
+        manualrecord["record_payment: login + POST + ADMIN/CASHIER; form memvalidasi amount >= 0, tipe FULL/DP/INSTALLMENT, method, due_date, bukti opsional; status awal PENDING."]
+        recordlimits["Endpoint tidak mengecek status transaksi atau sisa tagihan; UI menyembunyikan tombol tambah saat PAID, tetapi endpoint tetap menerima POST. Form invalid → JSON 400."]
+        paymentchoice{"Aksi terhadap Payment?"}
+        confirmstart["confirm_payment: login + POST + ADMIN/CASHIER; hanya Payment PENDING yang dapat dikonfirmasi."]
+        lockrows["Dalam atomic: lock Payment dan Transaction; cek ulang status PENDING; hitung total Payment CONFIRMED yang lain + amount payment ini."]
+        enough{"Total confirmed baru >= transaction.grand_total?"}
+        partialpaid["Belum cukup: transaction payment_status PARTIALLY_PAID, status PENDING; Payment menjadi CONFIRMED."]
+        fullpaid["Cukup atau overpayment: transaction payment_status PAID, status COMPLETED; jalankan deduct_stock sebelum Payment dikonfirmasi."]
+        stockcheck{"Seluruh variant transaksi ada dan stok cukup?"}
+        stockdeduct["Lock ProductVariant; kurangi tiap quantity; buat StockMovement SALES; tandai transaction.stock_deducted=true."]
+        stockrollback["Tidak cukup / variant hilang: atomic confirm rollback; sesudah exception transaction direset PENDING/UNPAID; Payment tetap PENDING."]
+        overpayment["Nilai payment tidak dibatasi oleh sisa tagihan; paid_amount dapat melampaui grand_total dan remaining_balance menjadi negatif."]
+        voidcheck{"Status Payment ketika void?"}
+        pendingvoid["PENDING → FAILED; status transaksi tidak dihitung ulang."]
+        confirmedvoid["CONFIRMED → REFUNDED; hitung ulang confirmed total dari payment lain yang masih CONFIRMED."]
+        recalc{"Total confirmed tersisa?"}
+        nofunds["<= 0: Transaction UNPAID/PENDING."]
+        partialrefund["> 0 tetapi < grand_total: PARTIALLY_PAID/PENDING."]
+        paidrefund[">= grand_total: tetap PAID/COMPLETED."]
+        restockcheck{"Stok pernah dipotong dan transaksi tidak lagi COMPLETED?"}
+        restock["Jika ya: tambah stok item, buat StockMovement RETURN, stock_deducted=false. Jika pembayaran tersisa cukup, stok tidak dikembalikan."]
+        invalidvoid["Status Payment selain PENDING/CONFIRMED: void ditolak."]
+        entrychoice["Detail transaksi memberi aksi record payment, confirm, atau void/refund."]
+        paymententry --> manualrecord --> recordlimits --> entrychoice
+        paymententry --> paymentchoice
+        entrychoice --> paymentchoice
+        paymentchoice -- "confirm" --> confirmstart --> lockrows --> enough
+        enough -- "belum" --> partialpaid
+        enough -- "ya" --> fullpaid --> stockcheck
+        stockcheck -- "ya" --> stockdeduct --> overpayment
+        stockcheck -- "tidak" --> stockrollback
+        paymentchoice -- "void/refund" --> voidcheck
+        voidcheck -- "PENDING" --> pendingvoid
+        voidcheck -- "CONFIRMED" --> confirmedvoid --> recalc
+        voidcheck -- "lain" --> invalidvoid
+        recalc -- "0" --> nofunds
+        recalc -- "parsial" --> partialrefund
+        recalc -- "cukup" --> paidrefund
+        nofunds --> restockcheck
+        partialrefund --> restockcheck
+        paidrefund --> restockcheck
+        restockcheck --> restock
+    end
+
+    subgraph TRANSACTIONS["07 · Detail, pembatalan, daftar, dan invoice"]
+        direction TB
+        txdetail["Detail Transaction: item, jumlah, status, customer/cashier, daftar Payment, paid_amount dan remaining_balance."]
+        txactions{"Aksi detail transaksi?"}
+        extra_payment["Tambah payment: buat Payment PENDING dari modal detail; endpoint dan aturannya sama dengan record_payment di modul pembayaran."]
+        cancelrequest["Cancel endpoint: login + POST + ADMIN/CASHIER. UI hanya menampilkan tombol saat Transaction PENDING; endpoint tidak membatasi status awal pada PENDING."]
+        cancelservice["Service mengubah Transaction menjadi CANCELLED dan payment_status REFUNDED; row-row Payment tidak ikut diubah."]
+        canceledstock{"stock_deducted bernilai true?"}
+        canceledreturn["Ya: kembalikan item dan buat ledger RETURN. Tidak: stok tidak diubah."]
+        cancelrepeat["Cancel berulang pada CANCELLED tidak melakukan perubahan lagi; status lain tetap dapat mencapai endpoint."]
+        txlist["Daftar transaksi ADMIN/CASHIER: pencarian nomor transaksi dan pagination; memilih baris membuka detail transaksi."]
+        pdf["Invoice PDF ADMIN/CASHIER: identitas Veloura, cashier/customer, tanggal/status, item, subtotal/discount/total, status payment."]
+        paymentlist["Daftar payment ADMIN/CASHIER: filter query/status/method/type/tanggal; ringkasan CONFIRMED dan PENDING; pagination."]
+        txdetail --> txactions
+        txactions -- "record payment" --> extra_payment
+        txactions -- "cancel" --> cancelrequest --> cancelservice --> canceledstock
+        canceledstock -- "ya" --> canceledreturn --> cancelrepeat
+        canceledstock -- "tidak" --> cancelrepeat
+        txactions -- "lihat daftar" --> txlist
+        txactions -- "cetak invoice" --> pdf
+        txactions -- "daftar pembayaran" --> paymentlist
+    end
+
+    subgraph INVENTORY["08 · Inventory, material, dan stock ledger"]
+        direction TB
+        inventorydata["Dua objek stok utama: ProductVariant (produk retail) dan Material (bahan/pendukung). StockMovement memakai GenericForeignKey ke salah satunya."]
+        material["Material ADMIN/CASHIER: kategori, unit, stock_quantity, min_stock, supplier opsional, harga beli; ID MAT-...; list/create/edit ADMIN/CASHIER, delete ADMIN."]
+        materialedit["Form create/edit Material menerima stock_quantity langsung; perubahan lewat form ini tidak membuat StockMovement."]
+        adjust["material_stock_adjust: login + ADMIN/CASHIER; isi movement_type, quantity, reference, notes."]
+        adjustlogic{"movement_type DAMAGE_LOSS?"}
+        subtract["DAMAGE_LOSS: stok dikurangi; jika hasil negatif, ditolak."]
+        addstock["Semua pilihan tipe lain pada endpoint ini menambah stok."]
+        adjustsave["Atomic: buat StockMovement dan simpan stock_quantity Material; nilai previous_stock dihitung sebelum blok atomic."]
+        movementchoices["Pilihan ledger: PURCHASE, SALES, PRODUCTION_USAGE, PRODUCTION_OUTPUT, RETURN, ADJUSTMENT, DAMAGE_LOSS. PRODUCTION_OUTPUT belum digunakan workflow yang ditinjau."]
+        sourcepos["Sumber movement produk: custom barcode stock-in PURCHASE; edit stock variant ADJUSTMENT; pembayaran penuh SALES; refund/cancel RETURN."]
+        sourcematerial["Sumber movement material: adjustment ADMIN/CASHIER; MaterialRequest fulfill; MaterialUsage — ketiganya mencatat PRODUCTION_USAGE atau ADJUSTMENT ke ledger yang sama."]
+        ledger["Setiap ledger menyimpan tipe, quantity, previous_stock, new_stock, reference, user, timestamp; halaman list ADMIN/CASHIER, pagination."]
+        lowstock["Low-stock Material jika stock_quantity <= min_stock. Dashboard ADMIN/CASHIER menghitung variant aktif pada Product ACTIVE yang stok <= min_stock."]
+        inventorydata --> material
+        material --> materialedit
+        material --> adjust --> adjustlogic
+        adjustlogic -- "ya" --> subtract --> adjustsave
+        adjustlogic -- "tidak" --> addstock --> adjustsave
+        adjustsave --> ledger
+        adjust --> movementchoices
+        sourcepos --> ledger
+        sourcematerial --> ledger
+        inventorydata --> lowstock
+    end
+
+    subgraph ORDERS["09 · Custom order, measurement, dan langkah selanjutnya"]
+        direction TB
+        orderactor["ADMIN/CASHIER/DESIGNER dapat membuat dan melihat order; designer melihat order miliknya atau belum ditugaskan (bisa diklaim)."]
+        customerrequired["Pilih Customer terlebih dahulu; Customer wajib untuk Order."]
+        ordercreate["Create: nomor ORD-tanggal-urutan; cashier selalu user pembuat; designer opsional; setelah simpan redirect ke detail order."]
+        assign["Jika pembuat DESIGNER, designer otomatis dirinya sendiri (field tersembunyi). ADMIN/CASHIER dapat memilih designer — dropdown hanya berisi user berrole DESIGNER."]
+        orderfields["Order menyimpan required_date, description/notes, total_amount, dp_amount; remaining_balance = total_amount - dp_amount."]
+        orderstate["Status tersedia tanpa alur wajib: RECEIVED, MEASUREMENT, DESIGNING, DESIGN_APPROVAL, MATERIAL_PREP, PRODUCTION, FITTING, QC, COMPLETED, DELIVERED, CANCELLED."]
+        orderedit["Edit order: designer hanya dapat membuka order assigned ke dirinya atau unassigned; edit unassigned meng-assign ke designer tersebut."]
+        statuspost["POST update_order_status: ketiga role; status harus pilihan valid; designer hanya order sendiri atau unassigned — order unassigned yang diupdate otomatis diklaim (self-assign)."]
+        history["Endpoint status membuat OrderStatusHistory: status baru, user, notes, teks status lama→baru."]
+        historygap["Create tidak membuat history awal. Edit form biasa dapat mengganti status tanpa menulis history; hanya AJAX status endpoint yang mencatat history."]
+        nextsteps["Detail order punya section Langkah Selanjutnya: tombol Buat Design, Production, QC, Fitting, Measurement dengan parameter ?order=pk."]
+        preselect["Form create menerima preselect: field order (dan designer/customer/qc_by) dijadikan HiddenInput, terisi otomatis dari order; setelah simpan kembali ke detail order."]
+        measurement["Measurement: list/create ketiga role; customer wajib, order opsional; tanggal otomatis; chest, waist, hip, shoulder, sleeve, arm, neck, garment, skirt/trouser length dalam cm + notes. Menerima preselect ?order seperti modul lain."]
+        orderactor --> customerrequired --> ordercreate --> assign --> orderfields --> orderstate
+        orderstate --> orderedit
+        orderstate --> statuspost --> history
+        orderedit --> historygap
+        orderstate --> nextsteps --> preselect
+        orderactor --> measurement
+    end
+
+    subgraph DESIGNS["10 · Design, approval, dan versi"]
+        direction TB
+        designaccess["ADMIN/DESIGNER create/edit/status; CASHIER list/detail. List, update, dan detail designer hanya menampilkan design miliknya."]
+        designcreate["Design terkait Order: nama, kategori, sketch/reference, fabric/color/style, designer, status, estimated cost/duration, notes; ID DSN-..."]
+        designstate["Status Design: DRAFT, PENDING_APPROVAL, APPROVED, REJECTED, IN_PRODUCTION, COMPLETED."]
+        designform["Create dari detail order: preselect order, designer = user login, nama awal 'Design - nomor order'; semua field terkait disembunyikan."]
+        updatechoice{"Perubahan memakai form biasa atau endpoint AJAX?"}
+        regular["Form edit menyimpan field termasuk status, tetapi tidak membuat DesignVersion dan tidak menyinkronkan status Order."]
+        ajax["AJAX update status: login + POST + ADMIN/DESIGNER; designer harus design miliknya; status divalidasi."]
+        version["Setiap AJAX update membuat DesignVersion snapshot sketch/notes, version_number dihitung dari snapshot terakhir + 1 (aman dari IntegrityError), dan menyelaraskan Design.version."]
+        approved{"Status baru APPROVED?"}
+        orderstatus{"Status Order saat itu RECEIVED, MEASUREMENT, atau DESIGNING?"}
+        sync["Jika ya: Order menjadi DESIGN_APPROVAL dan OrderStatusHistory dibuat otomatis."]
+        nosync["Jika tidak: status Order tidak berubah."]
+        designaccess --> designcreate --> designstate
+        designcreate --> designform
+        designstate --> updatechoice
+        updatechoice -- "form" --> regular
+        updatechoice -- "AJAX" --> ajax --> version --> approved
+        approved -- "ya" --> orderstatus
+        orderstatus -- "ya" --> sync
+        orderstatus -- "tidak" --> nosync
+        approved -- "tidak" --> nosync
+    end
+
+    subgraph PRODUCTION["11 · Production, permintaan bahan, dan pemakaian"]
+        direction TB
+        prodaccess["ADMIN/DESIGNER membuat Production; daftar designer dibatasi pada production yang ditugaskan kepadanya."]
+        prodcreate["Production memerlukan Order; ID PRD-...; default PLANNED, progress 0. Form dari detail order preselect order dan designer."]
+        prodstatus["Status: PLANNED, IN_PROGRESS, ON_HOLD, COMPLETED, DELAYED."]
+        progress["AJAX progress menerima nilai 0..100. COMPLETED mengisi actual_completion bila masih kosong; update ini tidak mengubah status Order. Dapat diulang sepanjang workflow."]
+        requestcreate["ADMIN/DESIGNER membuat MaterialRequest untuk production + material; quantity >= 0; status awal PENDING; requested_by tersimpan."]
+        requeststatus["Status: PENDING, APPROVED, FULFILLED, REJECTED."]
+        requestaction{"POST action?"}
+        approve["approve: set APPROVED dan approved_by; stok tidak berubah."]
+        reject["reject: set REJECTED dan approved_by; stok tidak berubah."]
+        fulfill["fulfill: lock Material; cek stok; kurangi quantity request; buat StockMovement PRODUCTION_USAGE; set FULFILLED. Designer hanya boleh action pada production miliknya."]
+        repeat["Endpoint tidak mengecek status lama sebelum fulfill — fulfill berulang dapat mengurangi stok berulang kali; stok kurang → JSON 400. Tidak ada panah balik; tindakan diulang lewat request yang sama."]
+        usage["MaterialUsage: production, material_request opsional, material, quantity_used >= 0, notes; Designer dapat membuat."]
+        usagelock["Saat save: lock Material; jika stok cukup kurangi stok, simpan usage dan StockMovement PRODUCTION_USAGE; stok kurang → form invalid."]
+        separation["MaterialRequest fulfill dan MaterialUsage adalah dua jalur terpisah; link material_request tidak otomatis mencegah pemakaian ganda. Keduanya mencatat ke ledger material yang sama."]
+        prodaccess --> prodcreate --> prodstatus --> progress
+        prodcreate --> requestcreate --> requeststatus --> requestaction
+        requestaction -- "approve" --> approve
+        requestaction -- "reject" --> reject
+        requestaction -- "fulfill" --> fulfill --> repeat
+        prodcreate --> usage --> usagelock --> separation
+        fulfill --> separation
+    end
+
+    subgraph FITTINGQC["12 · Fitting dan quality control"]
+        direction TB
+        fitting["ADMIN/DESIGNER: list/create Fitting (route fittings/ dan fittings/add/); daftar designer dibatasi order yang ditugaskan."]
+        fittingfields["Order + Customer, scheduled_date wajib; fitting_date, results, alterations_required, documentation, status SCHEDULED/COMPLETED/CANCELLED."]
+        fittingprefill["Create dari detail order preselect order dan customer (keduanya HiddenInput); kembali ke detail order. Belum ada endpoint edit/status/detail khusus."]
+        fittingindependent["Status Fitting tidak otomatis mengubah status Order."]
+        qc["ADMIN/DESIGNER: list/create QC; daftar designer dibatasi order assigned."]
+        qcfields["QC terkait Order; 7 checklist: jahitan, ukuran, kain, warna, design, kebersihan, tampilan akhir; status PENDING/PASSED/FAILED/REQUIRES_REVISION; qc_by = user login."]
+        qcpassed{"QC dibuat PASSED?"}
+        checklist{"Semua checklist bernilai lulus?"}
+        qcsuccess["Ya: QC disimpan; qc_date diisi."]
+        qcerror["Tidak: create form invalid; record PASSED tidak disimpan."]
+        qcgap["Hasil QC tidak otomatis mengubah status Order — perbarui status order manual lewat modul 09. Belum ada endpoint update/detail QC khusus."]
+        fitting --> fittingfields --> fittingprefill --> fittingindependent
+        qc --> qcfields --> qcpassed
+        qcpassed -- "tidak" --> qcgap
+        qcpassed -- "ya" --> checklist
+        checklist -- "ya" --> qcsuccess --> qcgap
+        checklist -- "tidak" --> qcerror
+    end
+
+    subgraph SUPPORT["13 · Konfigurasi, batas implementasi, dokumentasi"]
+        direction TB
+        storage["SQLite default; database engine/name/user/password/host/port dapat diatur via DB_* environment variables untuk backend lain."]
+        files["Static dari static/; upload media di MEDIA_ROOT. Zona waktu Asia/Jakarta; currency IDR."]
+        models["BaseModel menyediakan created_at/updated_at; AuditMixin menyediakan created_by/updated_by hanya pada model yang mewarisinya."]
+        placeholders["analytics/, documents/, notifications/: route index yang ditinjau masih berupa halaman placeholder; tidak ada workflow aktif yang dipetakan."]
+        notimplemented["Tidak ditemukan flow pembelian/penerimaan supplier lengkap, pencarian global, analytics/reporting aktif, notifikasi in-app, atau scanner kamera POS."]
+        testing["Test suite per-app masih 0 test; smoke test manual memakai script terpisah (run_member_smoke.py, run_final.py) — 12 skenario lolos per 17 Nov 2026."]
+        docs["README/audit/progress tidak seluruhnya sinkron dengan source. Diagram ini memprioritaskan perilaku kode yang dibaca."]
+        runtimeentry["Operasional lokal: manage.py migrate/runserver; entrypoint WSGI/ASGI disediakan."]
+        apps --> storage --> files
+        apps --> models
+        apps --> placeholders --> notimplemented
+        apps --> testing --> docs
+        runtimeentry --> storage
+    end
+
+    %% Handoff antarmodul — semuanya bergerak maju (tanpa panah balik, tanpa loop).
+    sessioncreate --> who
+    permissions --> actor
+    variants --> createvariant
+    output --> scan
+    pendingpayment --> paymententry
+    success --> txdetail
+    entrychoice --> txdetail
+    stockdeduct --> ledger
+    restock --> ledger
+    canceledreturn --> ledger
+    customer --> customerrequired
+    material --> requestcreate
+    nextsteps --> designcreate
+    nextsteps --> prodcreate
+    nextsteps --> fitting
+    nextsteps --> qc
+    progress --> fittingindependent
+    fittingindependent --> qc
